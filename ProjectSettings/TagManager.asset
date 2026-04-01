@@ -10,6 +10,7 @@ TagManager:
   - LocoButton
   - LocoText
   - SamplesInfoPanel
+  - OilDrop
   layers:
   - Default
   - TransparentFX
@@ -32,7 +33,7 @@ TagManager:
   - InvisibleToRecording
   - MouseDetection
   - ReceiverScreen
-  - 
+  - OilDrop
   - 
   - 
   - 

@@ -15,25 +15,33 @@ public class PlayerCustomization : NetworkBehaviour
 
     public override void Spawned()
     {
-        // IMPORTANT: apply current replicated values immediately (covers initial spawn / late join)
         OnColorChanged();
         OnNameChanged();
 
-        // The local player (InputAuthority) knows the lobby data -> send it to StateAuthority
-        if (Object.HasInputAuthority)
+        if (Object != null && Object.HasInputAuthority)
         {
-            RPC_SetCustomization(ClientData.Instance.PlayerColor, ClientData.Instance.PlayerName);
+            if (ClientData.Instance != null)
+            {
+                RPC_SetCustomization(
+                    ClientData.Instance.PlayerColor,
+                    ClientData.Instance.PlayerName
+                );
+            }
+            else
+            {
+                Debug.LogWarning("[PlayerCustomization] ClientData.Instance is null. Using fallback values.");
+
+                RPC_SetCustomization(Color.white, "Player");
+            }
         }
     }
 
-    // Owner -> StateAuthority (host/authority peer) sets the Networked properties
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     private void RPC_SetCustomization(Color color, NetworkString<_16> name)
     {
         NetColor = color;
         NetName = name;
 
-        // Optional: apply on the authority instance immediately too
         OnColorChanged();
         OnNameChanged();
     }

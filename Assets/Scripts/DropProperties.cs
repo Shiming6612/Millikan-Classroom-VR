@@ -3,29 +3,26 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class DropProperties : MonoBehaviour
 {
-    [Header("Random Ranges (Simulation Units)")]
-    [Tooltip("Rigidbody mass in kg (Unity). Keep in a reasonable range for stable physics.")]
-    public float minMassKg = 0.005f;
-    public float maxMassKg = 0.02f;
+    public float minMassKg = 4.5e-16f;
+    public float maxMassKg = 1.3e-15f;
 
-    [Tooltip("Charge in picoCoulombs (pC). 1 pC = 1e-12 C.")]
-    public float minChargePC = -5f;
-    public float maxChargePC = 5f;
+    public int minChargeMultiple = 1;
+    public int maxChargeMultiple = 5;
 
-    [Header("Options")]
-    [Tooltip("If true, randomize in OnEnable(). Recommended: keep this OFF and randomize explicitly at spawn time (e.g., in SpraySpawner) to avoid double-randomization.")]
     public bool randomizeOnSpawn = false;
-
     public bool applyMassToRigidbody = true;
 
     public float MassKg { get; private set; }
-    public float ChargeC { get; private set; }   // Coulombs
+    public float ChargeC { get; private set; }
+    public int ChargeMultiple { get; private set; }
 
-    private Rigidbody _rb;
+    Rigidbody rb;
+
+    const double ElementaryCharge = 1.602176634e-19;
 
     void Awake()
     {
-        _rb = GetComponent<Rigidbody>();
+        rb = GetComponent<Rigidbody>();
     }
 
     void OnEnable()
@@ -36,12 +33,17 @@ public class DropProperties : MonoBehaviour
 
     public void RandomizeAndApply()
     {
-        MassKg = Random.Range(minMassKg, maxMassKg);
+        float minM = Mathf.Min(minMassKg, maxMassKg);
+        float maxM = Mathf.Max(minMassKg, maxMassKg);
+        MassKg = Random.Range(minM, maxM);
 
-        float chargePC = Random.Range(minChargePC, maxChargePC);
-        ChargeC = chargePC * 1e-12f;
+        int minQ = Mathf.Min(minChargeMultiple, maxChargeMultiple);
+        int maxQ = Mathf.Max(minChargeMultiple, maxChargeMultiple);
+        ChargeMultiple = Random.Range(minQ, maxQ + 1);
 
-        if (applyMassToRigidbody && _rb != null)
-            _rb.mass = MassKg;
+        ChargeC = (float)(ChargeMultiple * ElementaryCharge);
+
+        if (applyMassToRigidbody && rb != null)
+            rb.mass = MassKg;
     }
 }

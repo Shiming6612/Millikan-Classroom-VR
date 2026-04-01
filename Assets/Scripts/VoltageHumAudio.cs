@@ -4,29 +4,25 @@ using UnityEngine;
 public class VoltageHumAudio : MonoBehaviour
 {
     public VoltageKnobInput voltageSource;
-
-    [Header("Volume Mapping")]
-    public float maxKV = 10f;                 // 10 kV => maxVolume
+    public float maxVoltage = 800f;
     [Range(0f, 1f)] public float maxVolume = 0.8f;
 
-    private AudioSource _audio;
+    AudioSource audioSource;
 
     void Awake()
     {
-        _audio = GetComponent<AudioSource>();
-        _audio.loop = true;
-        _audio.playOnAwake = false;
-        _audio.volume = 0f;
+        audioSource = GetComponent<AudioSource>();
+        audioSource.loop = true;
+        audioSource.playOnAwake = false;
+        audioSource.volume = 0f;
 
-        if (_audio.clip != null)
-            _audio.Play(); // start muted
+        if (audioSource.clip != null)
+            audioSource.Play();
     }
 
     void Update()
     {
-        float kv = (voltageSource != null) ? voltageSource.CurrentKV : 0f;
-
-        // 0 kV => 0 volume, 10 kV => maxVolume
-        _audio.volume = Mathf.Clamp01(kv / maxKV) * maxVolume;
+        float v = voltageSource != null ? Mathf.Abs(voltageSource.CurrentVoltage) : 0f;
+        audioSource.volume = Mathf.Clamp01(v / Mathf.Max(1f, maxVoltage)) * maxVolume;
     }
 }

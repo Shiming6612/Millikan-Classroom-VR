@@ -1,48 +1,47 @@
-using System;
+﻿using System;
 using UnityEngine;
+using UnityEngine.XR;
 
 public class DropSelectionManager : MonoBehaviour
 {
-    [Header("Ray")]
     public Transform rayOrigin;
     public float rayLength = 10f;
     public LayerMask oilDropLayerMask = ~0;
     public float sphereCastRadius = 0.03f;
     public bool enableHoverHighlight = true;
 
-    [Header("Visual (optional)")]
+    public bool showLine = true;
     public LineRenderer line;
     public Color rayNormalColor = Color.white;
     public Color rayHitColor = Color.yellow;
 
-    [Header("Input")]
-    public bool useQuestInput = true;
-    public bool useMouseInEditor = true;
-    public bool allowAButtonFallback = false;
+    public bool useXRTriggerInput = true;
+    public bool allowPrimaryButtonFallback = false;
+    public XRNode triggerHand = XRNode.RightHand;
 
-    [Tooltip("Force which controller reads trigger input.")]
-    public OVRInput.Controller triggerController = OVRInput.Controller.RTouch;
+    public Vector3 rayLocalOffset = Vector3.zero;
+    public Vector3 rayLocalDirection = Vector3.forward;
 
-    [Header("Debug")]
     public bool logHits = false;
     public bool logSelection = true;
+    public bool logInput = false;
 
     public SelectableDrop CurrentSelected => _selected;
     public event Action<SelectableDrop> OnSelectionChanged;
 
-    SelectableDrop _selected;
-    SelectableDrop _hovered;
+    private SelectableDrop _selected;
+    private SelectableDrop _hovered;
 
-    void Reset()
-    {
-        rayOrigin = Camera.main ? Camera.main.transform : null;
-    }
+    private bool _prevTriggerPressed;
+    private bool _prevPrimaryPressed;
 
-    void Update()
+    private void Update()
     {
         if (rayOrigin == null) return;
 
-        Ray ray = new Ray(rayOrigin.position, rayOrigin.forward);
+        Vector3 origin = rayOrigin.TransformPoint(rayLocalOffset);
+        Vector3 dir = rayOrigin.TransformDirection(rayLocalDirection.normalized);
+        Ray ray = new Ray(origin, dir);
 
         bool hitSomething = Physics.SphereCast(
             ray,
@@ -63,13 +62,16 @@ public class DropSelectionManager : MonoBehaviour
         UpdateHover(hitDrop);
         UpdateLine(ray, hitSomething, hit);
 
-        if (GetSelectDown())
+        if (GetSelectDown() && hitDrop != null)
         {
+            if (logSelection)
+                Debug.Log($"[DropSelection] Confirm select: {hitDrop.name}");
+
             SetSelected(hitDrop);
         }
     }
 
-    void UpdateHover(SelectableDrop hitDrop)
+    private void UpdateHover(SelectableDrop hitDrop)
     {
         if (!enableHoverHighlight)
         {
@@ -85,22 +87,29 @@ public class DropSelectionManager : MonoBehaviour
         if (_hovered != null) _hovered.SetHovered(true);
     }
 
-    void UpdateLine(Ray ray, bool hitSomething, RaycastHit hit)
+    private void UpdateLine(Ray ray, bool hitSomething, RaycastHit hit)
     {
         if (line == null) return;
 
+        if (!showLine)
+        {
+            line.enabled = false;
+            return;
+        }
+
+        line.enabled = true;
+        line.useWorldSpace = true;
         line.positionCount = 2;
 
         Vector3 end = ray.origin + ray.direction * rayLength;
-        if (hitSomething) end = hit.point;
+        if (hitSomething) end = ray.origin + ray.direction * hit.distance;
 
         line.SetPosition(0, ray.origin);
         line.SetPosition(1, end);
 
-        line.startColor = hitSomething ? rayHitColor : rayNormalColor;
-        line.endColor = hitSomething ? rayHitColor : rayNormalColor;
-
-        if (!line.enabled) line.enabled = true;
+        Color c = hitSomething ? rayHitColor : rayNormalColor;
+        line.startColor = c;
+        line.endColor = c;
     }
 
     public void SetSelected(SelectableDrop newSelected)
@@ -119,23 +128,48 @@ public class DropSelectionManager : MonoBehaviour
         OnSelectionChanged?.Invoke(_selected);
     }
 
-    bool GetSelectDown()
+    private bool GetSelectDown()
     {
-        if (useMouseInEditor && Application.isEditor)
+        if (!useXRTriggerInput)
+            return false;
+
+        InputDevice device = InputDevices.GetDeviceAtXRNode(triggerHand);
+        if (!device.isValid)
         {
-            if (Input.GetMouseButtonDown(0))
-                return true;
+            if (logInput)
+                Debug.LogWarning("[DropSelection] XR device invalid: " + triggerHand);
+            return false;
         }
 
-        if (useQuestInput)
-        {
-            if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, triggerController))
-                return true;
+        bool triggerPressed = false;
+        bool primaryPressed = false;
 
-            if (allowAButtonFallback && OVRInput.GetDown(OVRInput.Button.One, triggerController))
-                return true;
+        device.TryGetFeatureValue(CommonUsages.triggerButton, out triggerPressed);
+        device.TryGetFeatureValue(CommonUsages.primaryButton, out primaryPressed);
+
+        bool triggerDown = triggerPressed && !_prevTriggerPressed;
+        bool primaryDown = allowPrimaryButtonFallback && primaryPressed && !_prevPrimaryPressed;
+
+        if (logInput && (triggerPressed || primaryPressed || triggerDown || primaryDown))
+        {
+            Debug.Log($"[DropSelection] hand={triggerHand}, triggerPressed={triggerPressed}, primaryPressed={primaryPressed}, triggerDown={triggerDown}, primaryDown={primaryDown}");
         }
 
-        return false;
+        _prevTriggerPressed = triggerPressed;
+        _prevPrimaryPressed = primaryPressed;
+
+        return triggerDown || primaryDown;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (rayOrigin == null) return;
+
+        Vector3 origin = rayOrigin.TransformPoint(rayLocalOffset);
+        Vector3 dir = rayOrigin.TransformDirection(rayLocalDirection.normalized);
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawSphere(origin, 0.01f);
+        Gizmos.DrawLine(origin, origin + dir * 0.2f);
     }
 }

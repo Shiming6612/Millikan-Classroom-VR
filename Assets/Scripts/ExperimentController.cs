@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 
 public class ExperimentController : MonoBehaviour
@@ -15,6 +15,18 @@ public class ExperimentController : MonoBehaviour
     private bool _isHolding = false;
     private bool _longPressTriggered = false;
     private Coroutine _holdRoutine;
+
+    // 给 PressBulbTrigger.cs 调用
+    public void BulbPressed()
+    {
+        Bulb_Select();
+    }
+
+    // 给 PressBulbTrigger.cs 调用
+    public void BulbReleased()
+    {
+        Bulb_Unselect();
+    }
 
     // Bind to Bulb: When Select()
     public void Bulb_Select()
