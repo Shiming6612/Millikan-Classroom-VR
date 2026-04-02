@@ -5,39 +5,39 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/TAI_Classroom01_NoNPC.unity
     guid: 6c66e479fec36324dafef8fd5e7fabb5
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Lobby.unity
     guid: ef6c1c00fb3effc42bb5a886f927c1c1
-  - enabled: 1
-    path: Assets/Scenes/TAI.unity
-    guid: e05e6cd52699edd43ad09a6cd1460168
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Lobby_C1_NPC.unity
     guid: 3c977f5bb18aef04d8b24ddee5bf1b14
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Lobby_C4_NoNPC.unity
     guid: 88a263cbb3310f64190a88c7e366685a
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Lobby_C4_NPC.unity
     guid: 0e05d851d16859a4fbb5db870e2178d4
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Lobby_C1_NoNPC.unity
     guid: a0be8063f4ddbda4e9bd698c2f890418
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Lobby_C2_NPC.unity
     guid: 054592262c9834549afe712bf0282fdc
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Lobby_C3_NoNPC.unity
     guid: 9569ff169e2ab54478cfc06695b5b6af
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Lobby_C2_NoNPC.unity
     guid: c7ad3f70b3d18f049bf60cd624fc73a3
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Lobby_C3_NPC.unity
     guid: 63c74f9a64ec8ad4c9c195ff8166c98e
+  - enabled: 1
+    path: Assets/Scenes/TAI_Classroom04_NPC.unity
+    guid: f72294dd2600b054b9c5b06c81b0b775
   m_configObjects:
     Unity.XR.Oculus.Settings: {fileID: 11400000, guid: 4f68ddc6b699d1b43a970e211e4c7ae0, type: 2}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: f7c99e3480555744e9a379ea516af73e, type: 2}
