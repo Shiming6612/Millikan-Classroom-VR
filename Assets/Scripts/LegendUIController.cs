@@ -24,10 +24,16 @@ public class LegendUIController : MonoBehaviour
     public AudioSource correctSfxSource;
     public AudioClip correctSfx;
 
+    [Header("Tutorial Completion")]
+    public float tutorialHoldCorrectSeconds = 1f;
+
     [Header("Debug")]
     public bool logDebug;
 
     private bool wasCorrect;
+    private bool tutorialSolvedSent;
+    private float correctHoldTimer;
+
     private Color baseColor;
     private float baseSize;
     private FontStyles baseStyle;
@@ -90,6 +96,9 @@ public class LegendUIController : MonoBehaviour
         SelectableDrop sel = selectionManager ? selectionManager.CurrentSelected : null;
         SetPanel(true);
 
+        tutorialSolvedSent = false;
+        correctHoldTimer = 0f;
+
         if (sel == null)
         {
             if (titleText) titleText.text = "Drop--";
@@ -141,7 +150,6 @@ public class LegendUIController : MonoBehaviour
         float hoverV = 0f;
         bool can = sel != null && TryHoverVoltage(sel, out hoverV);
 
-        // 只比较绝对值，因为面板和成功判定只关心所需电压大小
         bool correct = can && voltageSource != null && Mathf.Abs(Mathf.Abs(v) - hoverV) <= toleranceV;
 
         if (correct)
@@ -149,20 +157,37 @@ public class LegendUIController : MonoBehaviour
         else
             RestoreStyle();
 
-        // 只在“刚刚变成正确”这一刻触发一次
         if (correct && !wasCorrect)
         {
             if (correctSfxSource != null && correctSfx != null)
                 correctSfxSource.PlayOneShot(correctSfx);
 
-            if (tutorialController == null)
-                tutorialController = FindFirstObjectByType<BottomTutorialController>();
-
-            if (tutorialController != null)
-                tutorialController.NotifyVoltageSolved();
-
             if (logDebug)
                 Debug.Log($"[LegendUI] Correct voltage reached. HoverV={hoverV:0.0}, CurrentV={Mathf.Abs(v):0.0}");
+        }
+
+        if (correct)
+        {
+            correctHoldTimer += Time.deltaTime;
+
+            if (!tutorialSolvedSent && correctHoldTimer >= tutorialHoldCorrectSeconds)
+            {
+                if (tutorialController == null)
+                    tutorialController = FindFirstObjectByType<BottomTutorialController>();
+
+                if (tutorialController != null)
+                    tutorialController.NotifyVoltageSolved();
+
+                tutorialSolvedSent = true;
+
+                if (logDebug)
+                    Debug.Log("[LegendUI] Tutorial voltage solved after hold duration.");
+            }
+        }
+        else
+        {
+            correctHoldTimer = 0f;
+            tutorialSolvedSent = false;
         }
 
         wasCorrect = correct;
@@ -213,8 +238,7 @@ public class LegendUIController : MonoBehaviour
         if (rb != null)
         {
             var od = rb.GetComponent<OilDrop>();
-            if (od != null)
-                g = od.customGravity;
+            if (od != null) g = od.customGravity;
         }
 
         float gAlong = Mathf.Abs(Vector3.Dot(g, dir));

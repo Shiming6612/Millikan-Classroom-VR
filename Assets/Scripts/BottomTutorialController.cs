@@ -8,12 +8,13 @@ public class BottomTutorialController : MonoBehaviour
     public TMP_Text buttonHintText;
     public GameObject dialogueRoot;
 
-    [Header("Arrow Targets")]
-    public GameObject tutorialArrow;
-    public Transform targetSetup;
-    public Transform targetSprayer;
-    public Transform targetDropletArea;
-    public Transform targetVoltageKnob;
+    [Header("Tutorial Arrows")]
+    public GameObject arrowSetup;
+    public GameObject arrowSprayer;
+    public GameObject arrowSelectDrop;
+    public GameObject arrowLight;
+    public GameObject arrowCapacitor;
+    public GameObject arrowVoltageKnob;
 
     [Header("Tutorial Progress")]
     public bool dropletTriggered = false;
@@ -26,6 +27,7 @@ public class BottomTutorialController : MonoBehaviour
     public static bool TutorialInputLocked { get; private set; }
 
     private int currentStep = 0;
+    private const int LastStepIndex = 14;
 
     private void Start()
     {
@@ -34,6 +36,7 @@ public class BottomTutorialController : MonoBehaviour
 
         TutorialInputLocked = true;
         SetTutorialInputComponentsEnabled(false);
+        HideAllArrows();
         ShowStep();
     }
 
@@ -51,13 +54,11 @@ public class BottomTutorialController : MonoBehaviour
 
     private void Update()
     {
-        // A = Weiter
         if (OVRInput.GetDown(OVRInput.Button.One))
         {
             TryNextStep();
         }
 
-        // B = Zurück
         if (OVRInput.GetDown(OVRInput.Button.Two))
         {
             PreviousStep();
@@ -66,27 +67,27 @@ public class BottomTutorialController : MonoBehaviour
 
     private void TryNextStep()
     {
-        // Schritt 3: Öltröpfchen auslösen
-        if (currentStep == 3 && !dropletTriggered)
+        // Spray step
+        if (currentStep == 4 && !dropletTriggered)
         {
             if (buttonHintText != null)
-                buttonHintText.text = "Bitte löse zuerst ein Tröpfchen aus.    B = Zurück";
+                buttonHintText.text = "Erzeuge zuerst ein Tröpfchen.    B = Zurück";
             return;
         }
 
-        // Schritt 6: Tröpfchen auswählen
+        // Selection step
         if (currentStep == 6 && !dropSelected)
         {
             if (buttonHintText != null)
-                buttonHintText.text = "Bitte wähle zuerst ein Tröpfchen aus.    B = Zurück";
+                buttonHintText.text = "Wähle zuerst ein Tröpfchen aus.    B = Zurück";
             return;
         }
 
-        // Schritt 9: Spannung korrekt einstellen
-        if (currentStep == 9 && !voltageSolved)
+        // Voltage success step
+        if (currentStep == 13 && !voltageSolved)
         {
             if (buttonHintText != null)
-                buttonHintText.text = "Bitte stelle zuerst die richtige Spannung ein.    B = Zurück";
+                buttonHintText.text = "Stelle zuerst die richtige Spannung ein.    B = Zurück";
             return;
         }
 
@@ -95,7 +96,7 @@ public class BottomTutorialController : MonoBehaviour
 
     public void NextStep()
     {
-        if (currentStep < 10)
+        if (currentStep < LastStepIndex)
         {
             currentStep++;
             ShowStep();
@@ -131,27 +132,50 @@ public class BottomTutorialController : MonoBehaviour
         switch (currentStep)
         {
             case 0:
-                return "Willkommen im VR-Labor. Gehe bitte zum Experimentaufbau.";
+                return "Willkommen im VR-Labor.\nGehe bitte zum Millikan-Aufbau.";
+
             case 1:
-                return "Dies ist der Millikan-Versuch. Hier untersuchen wir geladene Öltröpfchen in einem elektrischen Feld.";
+                return "Die Geschichte beginnt in Chicago im Jahr 1909.\nMillikan wollte herausfinden, ob elektrische Ladung aus kleinsten Einheiten besteht.";
+
             case 2:
-                return "Hier siehst du wichtige Bestandteile des Aufbaus. Zuerst schauen wir uns den Zerstäuber an.";
+                return "Du siehst hier keine echte Apparatur in Originalgröße.\nDies ist eine vergrößerte VR-Version, damit du alle Teile besser erkennen und selbst benutzen kannst.";
+
             case 3:
-                return "Bitte löse jetzt ein Öltröpfchen aus.";
+                return "In diesem Versuch untersuchen wir winzige geladene Öltröpfchen.\nMit der richtigen Spannung kann ein Tröpfchen zwischen den Platten schweben.";
+
             case 4:
-                return "Gut gemacht! Du hast erfolgreich ein Tröpfchen erzeugt.";
+                return "Das ist der Zerstäuber.\nMit ihm werden neue Öltröpfchen in den Aufbau gesprüht.\nRichte deinen Controller darauf und löse ihn aus.";
+
             case 5:
-                return "Danach lernst du, wie du mit dem roten Strahl ein Tröpfchen auswählst.";
+                return "Wenn die Tröpfchen nicht richtig im Aufbau landen, kannst du neu starten.\nHalte den Zerstäuber dafür etwa 3 Sekunden lang gedrückt.";
+
             case 6:
-                return "Bitte wähle jetzt ein Tröpfchen mit dem roten Strahl aus.";
+                return "Benutze den roten Strahl, um ein Tröpfchen anzuvisieren.\nBestätige die Auswahl mit dem Trigger.";
+
             case 7:
-                return "Sehr gut! Das Tröpfchen wurde ausgewählt und die Parameter werden im Panel angezeigt.";
+                return "Sehr gut.\nIm Panel siehst du jetzt die Masse, die Ladung und die Spannung des ausgewählten Tröpfchens.";
+
             case 8:
-                return "Jetzt kommt die Spannungsregelung. Verwende die angezeigte Masse und Ladung sowie die Formel U = mgd / q. Der Plattenabstand beträgt d = 6 mm.";
+                return "Die Lichtquelle beleuchtet die Kammer.\nSo werden die Tröpfchen gut sichtbar.";
+
             case 9:
-                return "Berechne nun die richtige Spannung selbst und stelle sie am Regler ein. Der Spannungsbereich liegt zwischen 0 und 800 V.";
+                return "Das ist der Plattenkondensator.\nZwischen den Platten entsteht das elektrische Feld.\nDer Plattenabstand beträgt 6 mm.";
+
             case 10:
-                return "Glückwunsch! Du hast das Tutorial abgeschlossen. Viel Spaß beim Experimentieren.";
+                return "Jetzt kannst du die passende Spannung berechnen.\nBenutze dafür die Formel U = mgd / q.";
+
+            case 11:
+                return "Halte den Spannungsregler fest.\nBewege den Controller nach links oder rechts.\nSo änderst du die Spannung.";
+
+            case 12:
+                return "Für kleine Änderungen halte X am linken Controller gedrückt.\nDann kannst du feiner nachregeln.";
+
+            case 13:
+                return "Ist der Wert richtig, wird die Spannung grün.\nAußerdem hörst du ein Signal.\nBleibt der Wert kurz stabil, ist die Aufgabe geschafft.";
+
+            case 14:
+                return "Super.\nDu hast das Tutorial abgeschlossen.\nJetzt kannst du den Versuch selbstständig weiter ausprobieren. Viel Spaß!";
+
             default:
                 return "";
         }
@@ -159,65 +183,64 @@ public class BottomTutorialController : MonoBehaviour
 
     private void UpdateArrowForStep(int step)
     {
-        if (tutorialArrow == null)
-            return;
-
-        tutorialArrow.SetActive(false);
+        HideAllArrows();
 
         switch (step)
         {
             case 0:
             case 1:
-                if (targetSetup != null)
-                {
-                    tutorialArrow.SetActive(true);
-                    tutorialArrow.transform.position = targetSetup.position;
-                }
-                break;
-
             case 2:
             case 3:
-            case 4:
-                if (targetSprayer != null)
-                {
-                    tutorialArrow.SetActive(true);
-                    tutorialArrow.transform.position = targetSprayer.position;
-                }
+                if (arrowSetup != null) arrowSetup.SetActive(true);
                 break;
 
+            case 4:
             case 5:
+                if (arrowSprayer != null) arrowSprayer.SetActive(true);
+                break;
+
             case 6:
             case 7:
-                if (targetDropletArea != null)
-                {
-                    tutorialArrow.SetActive(true);
-                    tutorialArrow.transform.position = targetDropletArea.position;
-                }
+                if (arrowSelectDrop != null) arrowSelectDrop.SetActive(true);
                 break;
 
             case 8:
-            case 9:
-                if (targetVoltageKnob != null)
-                {
-                    tutorialArrow.SetActive(true);
-                    tutorialArrow.transform.position = targetVoltageKnob.position;
-                }
+                if (arrowLight != null) arrowLight.SetActive(true);
                 break;
 
+            case 9:
             case 10:
-                tutorialArrow.SetActive(false);
+                if (arrowCapacitor != null) arrowCapacitor.SetActive(true);
+                break;
+
+            case 11:
+            case 12:
+            case 13:
+                if (arrowVoltageKnob != null) arrowVoltageKnob.SetActive(true);
+                break;
+
+            case 14:
                 break;
         }
+    }
+
+    private void HideAllArrows()
+    {
+        if (arrowSetup != null) arrowSetup.SetActive(false);
+        if (arrowSprayer != null) arrowSprayer.SetActive(false);
+        if (arrowSelectDrop != null) arrowSelectDrop.SetActive(false);
+        if (arrowLight != null) arrowLight.SetActive(false);
+        if (arrowCapacitor != null) arrowCapacitor.SetActive(false);
+        if (arrowVoltageKnob != null) arrowVoltageKnob.SetActive(false);
     }
 
     public void NotifyDropletTriggered()
     {
         dropletTriggered = true;
 
-        if (currentStep == 3)
+        if (currentStep == 4)
         {
-            currentStep = 4;
-            ShowStep();
+            NextStep();
         }
     }
 
@@ -227,8 +250,7 @@ public class BottomTutorialController : MonoBehaviour
 
         if (currentStep == 6)
         {
-            currentStep = 7;
-            ShowStep();
+            NextStep();
         }
     }
 
@@ -239,10 +261,9 @@ public class BottomTutorialController : MonoBehaviour
 
         voltageSolved = true;
 
-        if (currentStep == 9)
+        if (currentStep == 13)
         {
-            currentStep = 10;
-            ShowStep();
+            NextStep();
         }
     }
 
@@ -250,12 +271,10 @@ public class BottomTutorialController : MonoBehaviour
     {
         TutorialInputLocked = false;
         SetTutorialInputComponentsEnabled(true);
+        HideAllArrows();
 
         if (dialogueRoot != null)
             dialogueRoot.SetActive(false);
-
-        if (tutorialArrow != null)
-            tutorialArrow.SetActive(false);
     }
 
     private void SetTutorialInputComponentsEnabled(bool enabled)
