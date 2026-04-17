@@ -4,24 +4,32 @@ using UnityEngine.XR;
 
 public class DropSelectionManager : MonoBehaviour
 {
+    [Header("Ray Setup")]
     public Transform rayOrigin;
     public float rayLength = 10f;
     public LayerMask oilDropLayerMask = ~0;
     public float sphereCastRadius = 0.03f;
     public bool enableHoverHighlight = true;
 
+    [Header("Ray Visual")]
     public bool showLine = true;
     public LineRenderer line;
     public Color rayNormalColor = Color.white;
     public Color rayHitColor = Color.yellow;
 
+    [Header("Input")]
     public bool useXRTriggerInput = true;
     public bool allowPrimaryButtonFallback = false;
     public XRNode triggerHand = XRNode.RightHand;
 
+    [Header("Ray Transform")]
     public Vector3 rayLocalOffset = Vector3.zero;
     public Vector3 rayLocalDirection = Vector3.forward;
 
+    [Header("Runtime State")]
+    public bool selectionEnabled = false;
+
+    [Header("Debug")]
     public bool logHits = false;
     public bool logSelection = true;
     public bool logInput = false;
@@ -35,9 +43,30 @@ public class DropSelectionManager : MonoBehaviour
     private bool _prevTriggerPressed;
     private bool _prevPrimaryPressed;
 
+    private void Start()
+    {
+        RefreshLineVisibility(false);
+    }
+
     private void Update()
     {
-        if (rayOrigin == null) return;
+        if (!selectionEnabled)
+        {
+            if (_hovered != null)
+            {
+                _hovered.SetHovered(false);
+                _hovered = null;
+            }
+
+            RefreshLineVisibility(false);
+            return;
+        }
+
+        if (rayOrigin == null)
+        {
+            RefreshLineVisibility(false);
+            return;
+        }
 
         Vector3 origin = rayOrigin.TransformPoint(rayLocalOffset);
         Vector3 dir = rayOrigin.TransformDirection(rayLocalDirection.normalized);
@@ -71,6 +100,41 @@ public class DropSelectionManager : MonoBehaviour
         }
     }
 
+    public void SetSelectionEnabled(bool enabled)
+    {
+        if (selectionEnabled == enabled)
+            return;
+
+        selectionEnabled = enabled;
+
+        if (!selectionEnabled)
+        {
+            ClearSelectionAndHover();
+            RefreshLineVisibility(false);
+
+            if (logSelection)
+                Debug.Log("[DropSelection] Selection ray disabled.");
+        }
+        else
+        {
+            RefreshLineVisibility(showLine);
+
+            if (logSelection)
+                Debug.Log("[DropSelection] Selection ray enabled.");
+        }
+    }
+
+    public void ClearSelectionAndHover()
+    {
+        if (_hovered != null)
+        {
+            _hovered.SetHovered(false);
+            _hovered = null;
+        }
+
+        SetSelected(null);
+    }
+
     private void UpdateHover(SelectableDrop hitDrop)
     {
         if (!enableHoverHighlight)
@@ -91,7 +155,7 @@ public class DropSelectionManager : MonoBehaviour
     {
         if (line == null) return;
 
-        if (!showLine)
+        if (!showLine || !selectionEnabled)
         {
             line.enabled = false;
             return;
@@ -110,6 +174,12 @@ public class DropSelectionManager : MonoBehaviour
         Color c = hitSomething ? rayHitColor : rayNormalColor;
         line.startColor = c;
         line.endColor = c;
+    }
+
+    private void RefreshLineVisibility(bool visible)
+    {
+        if (line != null)
+            line.enabled = visible && selectionEnabled && showLine;
     }
 
     public void SetSelected(SelectableDrop newSelected)

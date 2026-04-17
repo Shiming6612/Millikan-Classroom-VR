@@ -1,27 +1,34 @@
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(BoxCollider))]
 public class ElectricFieldVolume : MonoBehaviour
 {
+    [Header("Refs")]
     public VoltageKnobInput voltageSource;
     public bool invertVoltage;
     public Transform upperPlate;
     public Transform lowerPlate;
 
+    [Header("Field Settings")]
     [Tooltip("Plate spacing in meters. 0.006 m = 6 mm")]
     public float plateSpacingMetersOverride = 0.006f;
-
     public float fieldScale = 1f;
     public Vector3 fieldDirection = new Vector3(0, 1, 0);
     public float voltageSmoothing = 20f;
     public float maxAccel = 30f;
-    public int nullCleanupIntervalFrames = 30;
-    public bool logEnterExit;
 
-    readonly HashSet<Rigidbody> bodies = new HashSet<Rigidbody>();
-    float voltageSmooth;
-    int cleanupCounter;
+    [Header("Detection")]
+    public string oilDropTag = "OilDrop";
+    public bool logEnterExit = false;
+
+    public bool HasBodiesInside => bodies.Count > 0;
+    public event Action<bool> OnOccupiedStateChanged;
+
+    private readonly HashSet<Rigidbody> bodies = new HashSet<Rigidbody>();
+    private float voltageSmooth;
+    private bool lastOccupiedState = false;
 
     void Awake()
     {
@@ -34,18 +41,20 @@ public class ElectricFieldVolume : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        var rb = other.attachedRigidbody;
+        Rigidbody rb = GetValidOilDropBody(other);
         if (rb == null) return;
 
-        bodies.Add(rb);
+        bool added = bodies.Add(rb);
 
-        if (logEnterExit)
-            Debug.Log($"[ElectricFieldVolume] Enter: {rb.name}", this);
+        if (logEnterExit && added)
+            Debug.Log($"[ElectricFieldVolume] OilDrop Enter: {rb.name}", this);
+
+        CheckOccupiedStateChanged();
     }
 
     void OnTriggerStay(Collider other)
     {
-        var rb = other.attachedRigidbody;
+        Rigidbody rb = GetValidOilDropBody(other);
         if (rb == null) return;
 
         bodies.Add(rb);
@@ -53,28 +62,26 @@ public class ElectricFieldVolume : MonoBehaviour
 
     void OnTriggerExit(Collider other)
     {
-        var rb = other.attachedRigidbody;
+        Rigidbody rb = GetValidOilDropBody(other);
         if (rb == null) return;
 
-        bodies.Remove(rb);
+        bool removed = bodies.Remove(rb);
 
-        if (logEnterExit)
-            Debug.Log($"[ElectricFieldVolume] Exit: {rb.name}", this);
+        if (logEnterExit && removed)
+            Debug.Log($"[ElectricFieldVolume] OilDrop Exit: {rb.name}", this);
+
+        CheckOccupiedStateChanged();
     }
 
     void FixedUpdate()
     {
-        if (nullCleanupIntervalFrames > 0)
-        {
-            cleanupCounter++;
-            if (cleanupCounter >= nullCleanupIntervalFrames)
-            {
-                cleanupCounter = 0;
-                bodies.RemoveWhere(rb => rb == null);
-            }
-        }
+        bodies.RemoveWhere(rb => rb == null);
 
-        if (bodies.Count == 0) return;
+        if (bodies.Count == 0)
+        {
+            CheckOccupiedStateChanged();
+            return;
+        }
 
         float vRaw = voltageSource != null ? voltageSource.CurrentVoltage : 0f;
         if (invertVoltage) vRaw = -vRaw;
@@ -86,11 +93,11 @@ public class ElectricFieldVolume : MonoBehaviour
         float d = GetPlateSpacingMeters();
         if (d <= 1e-6f) return;
 
-        foreach (var rb in bodies)
+        foreach (Rigidbody rb in bodies)
         {
             if (rb == null) continue;
 
-            var dp = rb.GetComponent<DropProperties>();
+            DropProperties dp = rb.GetComponent<DropProperties>();
             if (dp == null) continue;
 
             float q = dp.ChargeC;
@@ -98,7 +105,7 @@ public class ElectricFieldVolume : MonoBehaviour
             if (Mathf.Abs(q) < 1e-20f) continue;
 
             Vector3 g = Physics.gravity;
-            var oil = rb.GetComponent<OilDrop>();
+            OilDrop oil = rb.GetComponent<OilDrop>();
             if (oil != null)
                 g = oil.customGravity;
 
@@ -122,6 +129,30 @@ public class ElectricFieldVolume : MonoBehaviour
         }
     }
 
+    private Rigidbody GetValidOilDropBody(Collider other)
+    {
+        if (other == null) return null;
+
+        Rigidbody rb = other.attachedRigidbody;
+        if (rb == null) return null;
+
+        // 只认真正的油滴
+        if (!rb.CompareTag(oilDropTag) && !other.CompareTag(oilDropTag))
+            return null;
+
+        return rb;
+    }
+
+    private void CheckOccupiedStateChanged()
+    {
+        bool occupied = bodies.Count > 0;
+        if (occupied == lastOccupiedState)
+            return;
+
+        lastOccupiedState = occupied;
+        OnOccupiedStateChanged?.Invoke(occupied);
+    }
+
     public float GetPlateSpacingMeters()
     {
         if (plateSpacingMetersOverride > 0f)
@@ -132,7 +163,7 @@ public class ElectricFieldVolume : MonoBehaviour
         if (upperPlate != null && lowerPlate != null)
             return Mathf.Abs(Vector3.Dot(upperPlate.position - lowerPlate.position, dir));
 
-        var box = GetComponent<BoxCollider>();
+        BoxCollider box = GetComponent<BoxCollider>();
         if (box != null)
         {
             Vector3 s = box.bounds.size;

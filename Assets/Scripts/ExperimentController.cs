@@ -9,72 +9,127 @@ public class ExperimentController : MonoBehaviour
     [Header("Spray")]
     public SpraySpawner spraySpawner;
 
+    [Header("Field Volume")]
+    public ElectricFieldVolume electricFieldVolume;
+
+    [Header("Selection Ray")]
+    public DropSelectionManager dropSelectionManager;
+
     [Header("Input")]
     public float longPressSeconds = 3f;
 
-    private bool _isHolding = false;
-    private bool _longPressTriggered = false;
-    private Coroutine _holdRoutine;
+    private bool isHolding = false;
+    private bool longPressTriggered = false;
+    private Coroutine holdRoutine;
 
-    // 给 PressBulbTrigger.cs 调用
+    private void OnEnable()
+    {
+        if (electricFieldVolume != null)
+            electricFieldVolume.OnOccupiedStateChanged += HandleFieldOccupiedChanged;
+    }
+
+    private void OnDisable()
+    {
+        if (electricFieldVolume != null)
+            electricFieldVolume.OnOccupiedStateChanged -= HandleFieldOccupiedChanged;
+    }
+
+    private void Start()
+    {
+        if (dropSelectionManager != null)
+            dropSelectionManager.SetSelectionEnabled(false);
+    }
+
+    private void HandleFieldOccupiedChanged(bool hasDropsInside)
+    {
+        if (dropSelectionManager == null)
+            return;
+
+        if (hasDropsInside)
+        {
+            dropSelectionManager.SetSelectionEnabled(true);
+        }
+        else
+        {
+            dropSelectionManager.ClearSelectionAndHover();
+            dropSelectionManager.SetSelectionEnabled(false);
+        }
+    }
+
     public void BulbPressed()
     {
         Bulb_Select();
     }
 
-    // 给 PressBulbTrigger.cs 调用
     public void BulbReleased()
     {
         Bulb_Unselect();
     }
 
-    // Bind to Bulb: When Select()
     public void Bulb_Select()
     {
-        _isHolding = true;
-        _longPressTriggered = false;
+        isHolding = true;
+        longPressTriggered = false;
 
-        if (_holdRoutine != null) StopCoroutine(_holdRoutine);
-        _holdRoutine = StartCoroutine(LongPressWatcher());
+        if (holdRoutine != null)
+            StopCoroutine(holdRoutine);
+
+        holdRoutine = StartCoroutine(LongPressWatcher());
     }
 
-    // Bind to Bulb: When Unselect()
     public void Bulb_Unselect()
     {
-        _isHolding = false;
+        isHolding = false;
 
-        if (_holdRoutine != null)
+        if (holdRoutine != null)
         {
-            StopCoroutine(_holdRoutine);
-            _holdRoutine = null;
+            StopCoroutine(holdRoutine);
+            holdRoutine = null;
         }
 
-        // If long press already reset, do nothing
-        if (_longPressTriggered) return;
+        if (longPressTriggered)
+            return;
 
-        // Short press: open shell + spray
-        if (shellToggle != null) shellToggle.SetCutaway(true);
-        if (spraySpawner != null) spraySpawner.SprayOnce();
+        if (shellToggle != null)
+            shellToggle.SetCutaway(true);
+
+        if (spraySpawner != null)
+            spraySpawner.SprayOnce();
+
+        // 不在这里开红射线
+        // 只有真正有 OilDrop 进入 ElectricFieldVolume 后，才由事件开启
     }
 
     public void ResetExperiment()
     {
-        if (shellToggle != null) shellToggle.SetCutaway(false);
-        if (spraySpawner != null) spraySpawner.ResetAllDrops();
+        if (shellToggle != null)
+            shellToggle.SetCutaway(false);
+
+        if (spraySpawner != null)
+            spraySpawner.ResetAllDrops();
+
+        if (dropSelectionManager != null)
+        {
+            dropSelectionManager.ClearSelectionAndHover();
+            dropSelectionManager.SetSelectionEnabled(false);
+        }
     }
 
     private IEnumerator LongPressWatcher()
     {
         float t = 0f;
-        while (_isHolding)
+
+        while (isHolding)
         {
             t += Time.deltaTime;
+
             if (t >= longPressSeconds)
             {
-                _longPressTriggered = true;
+                longPressTriggered = true;
                 ResetExperiment();
                 yield break;
             }
+
             yield return null;
         }
     }

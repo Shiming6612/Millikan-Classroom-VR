@@ -27,7 +27,7 @@ public class BottomTutorialController : MonoBehaviour
     public static bool TutorialInputLocked { get; private set; }
 
     private int currentStep = 0;
-    private const int LastStepIndex = 14;
+    private const int LastStepIndex = 16;
 
     private void Start()
     {
@@ -55,19 +55,14 @@ public class BottomTutorialController : MonoBehaviour
     private void Update()
     {
         if (OVRInput.GetDown(OVRInput.Button.One))
-        {
             TryNextStep();
-        }
 
         if (OVRInput.GetDown(OVRInput.Button.Two))
-        {
             PreviousStep();
-        }
     }
 
     private void TryNextStep()
     {
-        // Spray step
         if (currentStep == 4 && !dropletTriggered)
         {
             if (buttonHintText != null)
@@ -75,7 +70,6 @@ public class BottomTutorialController : MonoBehaviour
             return;
         }
 
-        // Selection step
         if (currentStep == 6 && !dropSelected)
         {
             if (buttonHintText != null)
@@ -83,7 +77,6 @@ public class BottomTutorialController : MonoBehaviour
             return;
         }
 
-        // Voltage success step
         if (currentStep == 13 && !voltageSolved)
         {
             if (buttonHintText != null)
@@ -174,6 +167,12 @@ public class BottomTutorialController : MonoBehaviour
                 return "Ist der Wert richtig, wird die Spannung grün.\nAußerdem hörst du ein Signal.\nBleibt der Wert kurz stabil, ist die Aufgabe geschafft.";
 
             case 14:
+                return "Hast du das Muster der drei farbigen Pfeile schon bemerkt?\nGenau: Blau steht für die Gewichtskraft, Gelb für den Auftrieb und Grün für die elektrische Kraft.";
+
+            case 15:
+                return "Sind die beiden oberen Kräfte zusammen kleiner als die Gewichtskraft, sinkt das Tröpfchen.\nSind sie gleich groß, schwebt es.\nSind sie größer, steigt es nach oben.";
+
+            case 16:
                 return "Super.\nDu hast das Tutorial abgeschlossen.\nJetzt kannst du den Versuch selbstständig weiter ausprobieren. Viel Spaß!";
 
             default:
@@ -220,6 +219,8 @@ public class BottomTutorialController : MonoBehaviour
                 break;
 
             case 14:
+            case 15:
+            case 16:
                 break;
         }
     }
@@ -239,9 +240,7 @@ public class BottomTutorialController : MonoBehaviour
         dropletTriggered = true;
 
         if (currentStep == 4)
-        {
             NextStep();
-        }
     }
 
     public void NotifyDropSelected()
@@ -249,9 +248,7 @@ public class BottomTutorialController : MonoBehaviour
         dropSelected = true;
 
         if (currentStep == 6)
-        {
             NextStep();
-        }
     }
 
     public void NotifyVoltageSolved()
@@ -262,9 +259,7 @@ public class BottomTutorialController : MonoBehaviour
         voltageSolved = true;
 
         if (currentStep == 13)
-        {
             NextStep();
-        }
     }
 
     private void EndTutorial()
@@ -285,9 +280,7 @@ public class BottomTutorialController : MonoBehaviour
         for (int i = 0; i < componentsToDisableDuringTutorial.Length; i++)
         {
             if (componentsToDisableDuringTutorial[i] != null)
-            {
                 componentsToDisableDuringTutorial[i].enabled = enabled;
-            }
         }
     }
 }
