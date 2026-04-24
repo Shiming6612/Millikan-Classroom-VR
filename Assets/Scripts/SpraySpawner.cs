@@ -4,6 +4,12 @@ using UnityEngine;
 
 public class SpraySpawner : MonoBehaviour
 {
+    private enum SpawnMode
+    {
+        Random,
+        TeachingFixedRadius
+    }
+
     [Header("Refs")]
     public Transform spawnOrigin;
     public Transform aimTarget;
@@ -25,120 +31,244 @@ public class SpraySpawner : MonoBehaviour
     public float lateralJitterSpeed = 0.35f;
     public float upwardBias = 0.15f;
 
-    [Header("Nozzle Feedback (per squeeze)")]
+    [Header("Teaching Radius Mode")]
+    public float[] teachingRadiiMicrometer = new float[] { 0.5f, 1.0f, 1.5f };
+    public int currentTeachingRadiusIndex = 0;
+    public float currentTeachingRadiusMicrometer = 1.0f;
+
+    [Tooltip("How many drops are sprayed for each radius teaching group.")]
+    public int teachingDropsPerGroup = 15;
+
+    [Tooltip("Charge multiple used during radius teaching. 1 means 1e.")]
+    public int fixedChargeMultipleForTeaching = 1;
+
+    [Tooltip("If enabled, old drops are removed when switching to another teaching radius.")]
+    public bool resetDropsWhenChangingTeachingRadius = true;
+
+    [Header("Runtime Debug")]
+    [SerializeField] private SpawnMode currentSpawnMode = SpawnMode.Random;
+
+    [Header("Nozzle Feedback")]
     public AudioSource nozzleSfxSource;
     public AudioClip nozzleSfx;
     public ParticleSystem nozzleVfxPrefab;
     public Transform nozzlePoint;
 
-    int _spawnedCount = 0;
-    float _lastSprayTime = -999f;
-    Coroutine _burstRoutine;
-    readonly List<OilDrop> _spawned = new List<OilDrop>();
+    private int spawnedCount = 0;
+    private float lastSprayTime = -999f;
+    private Coroutine burstRoutine;
+    private readonly List<OilDrop> spawnedDrops = new List<OilDrop>();
+
+    public bool IsTeachingModeActive()
+    {
+        return currentSpawnMode == SpawnMode.TeachingFixedRadius;
+    }
 
     public void SprayOnce()
     {
-        if (!spawnOrigin || !dropPrefab) return;
-        if (_spawnedCount >= maxTotalDrops) return;
-        if (Time.time - _lastSprayTime < minTimeBetweenSprays) return;
+        if (spawnOrigin == null || dropPrefab == null)
+            return;
 
-        _lastSprayTime = Time.time;
+        if (spawnedCount >= maxTotalDrops)
+            return;
 
-        int want = Random.Range(minDropsPerSpray, maxDropsPerSpray + 1);
-        want = Mathf.Min(want, maxTotalDrops - _spawnedCount);
-        if (want <= 0) return;
+        if (Time.time - lastSprayTime < minTimeBetweenSprays)
+            return;
+
+        lastSprayTime = Time.time;
+
+        int wantedCount;
+
+        if (currentSpawnMode == SpawnMode.TeachingFixedRadius)
+        {
+            wantedCount = Mathf.Max(1, teachingDropsPerGroup);
+        }
+        else
+        {
+            wantedCount = Random.Range(minDropsPerSpray, maxDropsPerSpray + 1);
+        }
+
+        wantedCount = Mathf.Min(wantedCount, maxTotalDrops - spawnedCount);
+
+        if (wantedCount <= 0)
+            return;
 
         PlayNozzleFeedback();
 
-        if (_burstRoutine != null) StopCoroutine(_burstRoutine);
-        _burstRoutine = StartCoroutine(SpawnBurst(want));
+        if (burstRoutine != null)
+            StopCoroutine(burstRoutine);
+
+        burstRoutine = StartCoroutine(SpawnBurst(wantedCount));
     }
 
     public void ResetAllDrops()
     {
-        if (_burstRoutine != null) StopCoroutine(_burstRoutine);
-        _burstRoutine = null;
+        if (burstRoutine != null)
+            StopCoroutine(burstRoutine);
 
-        for (int i = 0; i < _spawned.Count; i++)
+        burstRoutine = null;
+
+        for (int i = 0; i < spawnedDrops.Count; i++)
         {
-            if (_spawned[i] != null)
-                Destroy(_spawned[i].gameObject);
+            if (spawnedDrops[i] != null)
+                Destroy(spawnedDrops[i].gameObject);
         }
 
-        _spawned.Clear();
-        _spawnedCount = 0;
+        spawnedDrops.Clear();
+        spawnedCount = 0;
     }
 
-    IEnumerator SpawnBurst(int count)
+    public void SetTeachingRadiusStep(int index)
     {
-        float dt = (burstDuration <= 0f || count <= 1) ? 0f : burstDuration / (count - 1);
+        if (teachingRadiiMicrometer == null || teachingRadiiMicrometer.Length == 0)
+        {
+            Debug.LogWarning("[SpraySpawner] Teaching radii list is empty.");
+            return;
+        }
+
+        currentTeachingRadiusIndex = Mathf.Clamp(index, 0, teachingRadiiMicrometer.Length - 1);
+        currentTeachingRadiusMicrometer = teachingRadiiMicrometer[currentTeachingRadiusIndex];
+
+        currentSpawnMode = SpawnMode.TeachingFixedRadius;
+
+        if (resetDropsWhenChangingTeachingRadius)
+            ResetAllDrops();
+
+        Debug.Log(
+            $"[SpraySpawner] Teaching mode ON. Radius = {currentTeachingRadiusMicrometer:0.00} µm, " +
+            $"Charge = {fixedChargeMultipleForTeaching}e, Drops = {teachingDropsPerGroup}"
+        );
+    }
+
+    public void DisableTeachingRadiusMode()
+    {
+        currentSpawnMode = SpawnMode.Random;
+        Debug.Log("[SpraySpawner] Teaching mode OFF. New drops will be random.");
+    }
+
+    public void ReturnToRandomModeAndClearDrops()
+    {
+        currentSpawnMode = SpawnMode.Random;
+        ResetAllDrops();
+        Debug.Log("[SpraySpawner] Returned to random mode and cleared all drops.");
+    }
+
+    private IEnumerator SpawnBurst(int count)
+    {
+        float delay = (burstDuration <= 0f || count <= 1)
+            ? 0f
+            : burstDuration / (count - 1);
 
         for (int i = 0; i < count; i++)
         {
             SpawnOne();
 
-            if (dt > 0f)
-                yield return new WaitForSeconds(dt);
+            if (delay > 0f)
+                yield return new WaitForSeconds(delay);
         }
 
-        _burstRoutine = null;
-    }
-
-    void SpawnOne()
-    {
-        var drop = Instantiate(dropPrefab);
-        _spawned.Add(drop);
-        _spawnedCount++;
-
-        var props = drop.GetComponent<DropProperties>();
-        if (props != null)
-            props.RandomizeAndApply();
-
-        Vector2 p = Random.insideUnitCircle * spawnRadius;
-        Vector3 pos = spawnOrigin.position + spawnOrigin.right * p.x + spawnOrigin.up * p.y;
-
-        Vector3 baseDir = (useAimTarget && aimTarget != null)
-            ? (aimTarget.position - pos).normalized
-            : spawnOrigin.forward;
-
-        baseDir = (baseDir + Vector3.up * upwardBias).normalized;
-        Vector3 dir = RandomDirectionInCone(baseDir, coneAngle);
-
-        float speed = baseLaunchSpeed * (1f + Random.Range(-speedRandomPercent, speedRandomPercent));
-        Vector3 lateral = Vector3.ProjectOnPlane(Random.onUnitSphere, dir).normalized * lateralJitterSpeed;
-
-        drop.Launch(pos, dir * speed + lateral);
+        burstRoutine = null;
 
         BottomTutorialController tutorial = FindFirstObjectByType<BottomTutorialController>();
         if (tutorial != null)
-        {
             tutorial.NotifyDropletTriggered();
-        }
     }
 
-    void PlayNozzleFeedback()
+    private void SpawnOne()
+    {
+        OilDrop drop = Instantiate(dropPrefab);
+
+        spawnedDrops.Add(drop);
+        spawnedCount++;
+
+        DropProperties props = drop.GetComponent<DropProperties>();
+        if (props == null)
+            props = drop.GetComponentInChildren<DropProperties>();
+
+        if (props != null)
+        {
+            if (currentSpawnMode == SpawnMode.TeachingFixedRadius)
+            {
+                // Tutorial radius comparison:
+                // fixed radius + fixed charge
+                props.SetTeachingRadiusAndCharge(
+                    currentTeachingRadiusMicrometer,
+                    fixedChargeMultipleForTeaching
+                );
+            }
+            else
+            {
+                // Normal experiment:
+                // random radius/mass + random charge
+                // visual scale is also applied according to the random radius
+                props.RandomizeAndApply();
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[SpraySpawner] Spawned drop has no DropProperties component.");
+        }
+
+        Vector2 randomOffset = Random.insideUnitCircle * spawnRadius;
+
+        Vector3 spawnPosition =
+            spawnOrigin.position +
+            spawnOrigin.right * randomOffset.x +
+            spawnOrigin.up * randomOffset.y;
+
+        Vector3 baseDirection = (useAimTarget && aimTarget != null)
+            ? (aimTarget.position - spawnPosition).normalized
+            : spawnOrigin.forward;
+
+        baseDirection = (baseDirection + Vector3.up * upwardBias).normalized;
+
+        Vector3 launchDirection = RandomDirectionInCone(baseDirection, coneAngle);
+
+        float launchSpeed = baseLaunchSpeed *
+                            (1f + Random.Range(-speedRandomPercent, speedRandomPercent));
+
+        Vector3 lateralJitter =
+            Vector3.ProjectOnPlane(Random.onUnitSphere, launchDirection).normalized *
+            lateralJitterSpeed;
+
+        Vector3 launchVelocity = launchDirection * launchSpeed + lateralJitter;
+
+        drop.Launch(spawnPosition, launchVelocity);
+    }
+
+    private void PlayNozzleFeedback()
     {
         if (nozzleSfxSource != null && nozzleSfx != null)
             nozzleSfxSource.PlayOneShot(nozzleSfx);
 
-        if (nozzleVfxPrefab == null) return;
+        if (nozzleVfxPrefab == null)
+            return;
 
-        Transform t = nozzlePoint != null ? nozzlePoint : (spawnOrigin != null ? spawnOrigin : transform);
-        var vfx = Instantiate(nozzleVfxPrefab, t.position, t.rotation);
+        Transform effectTransform = nozzlePoint != null
+            ? nozzlePoint
+            : (spawnOrigin != null ? spawnOrigin : transform);
+
+        ParticleSystem vfx = Instantiate(
+            nozzleVfxPrefab,
+            effectTransform.position,
+            effectTransform.rotation
+        );
+
         vfx.Play();
 
         float destroyAfter = 2f;
-        var main = vfx.main;
+        ParticleSystem.MainModule main = vfx.main;
+
         if (!main.loop)
         {
-            float lifeMax = main.startLifetime.constantMax;
-            destroyAfter = Mathf.Max(0.1f, main.duration + lifeMax + 0.2f);
+            float lifetimeMax = main.startLifetime.constantMax;
+            destroyAfter = Mathf.Max(0.1f, main.duration + lifetimeMax + 0.2f);
         }
 
         Destroy(vfx.gameObject, destroyAfter);
     }
 
-    static Vector3 RandomDirectionInCone(Vector3 forward, float coneHalfAngleDeg)
+    private static Vector3 RandomDirectionInCone(Vector3 forward, float coneHalfAngleDeg)
     {
         if (coneHalfAngleDeg <= 0.001f)
             return forward.normalized;
@@ -150,7 +280,12 @@ public class SpraySpawner : MonoBehaviour
         float theta = Random.Range(0f, Mathf.PI * 2f);
         float r = Mathf.Sqrt(1f - z * z);
 
-        Vector3 local = new Vector3(r * Mathf.Cos(theta), r * Mathf.Sin(theta), z);
-        return Quaternion.FromToRotation(Vector3.forward, forward.normalized) * local;
+        Vector3 localDirection = new Vector3(
+            r * Mathf.Cos(theta),
+            r * Mathf.Sin(theta),
+            z
+        );
+
+        return Quaternion.FromToRotation(Vector3.forward, forward.normalized) * localDirection;
     }
 }

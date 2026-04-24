@@ -12,6 +12,7 @@ public class LegendUIController : MonoBehaviour
     [Header("UI")]
     public CanvasGroup panelGroup;
     public TMP_Text titleText;
+    public TMP_Text radiusText;
     public TMP_Text massText;
     public TMP_Text chargeText;
     public TMP_Text voltageText;
@@ -102,6 +103,7 @@ public class LegendUIController : MonoBehaviour
         if (sel == null)
         {
             if (titleText) titleText.text = "Drop--";
+            if (radiusText) radiusText.text = "Radius: --";
             if (massText) massText.text = "Mass: --";
             if (chargeText) chargeText.text = "Charge: --";
             if (hintText) hintText.text = "";
@@ -122,11 +124,13 @@ public class LegendUIController : MonoBehaviour
 
         if (dp != null)
         {
+            if (radiusText) radiusText.text = $"Radius: {dp.RadiusMicrometer:0.00} µm";
             if (massText) massText.text = $"Mass: {dp.MassKg * 1e15f:0.000} pg";
             if (chargeText) chargeText.text = $"Charge: {dp.ChargeMultiple} e";
         }
         else
         {
+            if (radiusText) radiusText.text = "Radius: --";
             if (massText) massText.text = "Mass: --";
             if (chargeText) chargeText.text = "Charge: --";
         }
@@ -228,7 +232,10 @@ public class LegendUIController : MonoBehaviour
         float d = fieldVolume.GetPlateSpacingMeters();
         if (d <= 1e-6f) return false;
 
-        Vector3 dir = fieldVolume.fieldDirection.sqrMagnitude > 1e-6f ? fieldVolume.fieldDirection.normalized : Vector3.up;
+        Vector3 dir = fieldVolume.fieldDirection.sqrMagnitude > 1e-6f
+            ? fieldVolume.fieldDirection.normalized
+            : Vector3.up;
+
         Vector3 g = Physics.gravity;
 
         Rigidbody rb = sel.GetComponent<Rigidbody>();
@@ -277,6 +284,7 @@ public class LegendUIController : MonoBehaviour
     private void SetPanel(bool on)
     {
         if (panelGroup == null) return;
+
         panelGroup.alpha = on ? 1f : 0f;
         panelGroup.interactable = on;
         panelGroup.blocksRaycasts = on;
@@ -295,6 +303,7 @@ public class LegendUIController : MonoBehaviour
     private void ApplyCorrectStyle()
     {
         if (voltageText == null) return;
+
         voltageText.color = correctColor;
         voltageText.fontStyle = baseStyle | FontStyles.Bold;
         voltageText.fontSize = baseSize * Mathf.Max(1f, correctFontSizeMultiplier);
@@ -303,6 +312,7 @@ public class LegendUIController : MonoBehaviour
     private void RestoreStyle()
     {
         if (voltageText == null || !cached) return;
+
         voltageText.color = baseColor;
         voltageText.fontStyle = baseStyle;
         voltageText.fontSize = baseSize;
