@@ -55,9 +55,6 @@ public class BottomTutorialController : MonoBehaviour
 
         if (OVRInput.GetDown(OVRInput.Button.One))
             TryAdvanceFromPlayerReply();
-
-        if (OVRInput.GetDown(OVRInput.Button.Two))
-            TryAdvanceFromPlayerReply();
     }
 
     public void BeginTutorialSession()
@@ -148,15 +145,15 @@ public class BottomTutorialController : MonoBehaviour
         switch (step)
         {
             case 15:
-                spraySpawner.SetTeachingRadiusStep(0); // r = 0.5 µm, charge = 1e
+                spraySpawner.SetTeachingRadiusStep(0);
                 break;
 
             case 17:
-                spraySpawner.SetTeachingRadiusStep(1); // r = 1.0 µm, charge = 1e
+                spraySpawner.SetTeachingRadiusStep(1);
                 break;
 
             case 19:
-                spraySpawner.SetTeachingRadiusStep(2); // r = 1.5 µm, charge = 1e
+                spraySpawner.SetTeachingRadiusStep(2);
                 break;
 
             case 21:
@@ -274,7 +271,7 @@ public class BottomTutorialController : MonoBehaviour
                 return "Sehr gut. Jetzt schwebt das Tröpfchen. Das bedeutet: Die elektrische Kraft gleicht die Gewichtskraft aus.";
 
             case 31:
-                return "Aus diesem Gleichgewicht folgt die Ladung. \nWenn der Tropfen schwebt, gilt F_el = F_G. Daraus folgt: q = m · g · d / U.";
+                return "Aus diesem Gleichgewicht folgt die Ladung. Wenn der Tropfen schwebt, gilt F_el = F_G. Daraus folgt: q = m · g · d / U.";
 
             case 32:
                 return "Eine Messung allein reicht nicht. Ich habe viele Tröpfchen gemessen, nicht eines und nicht zehn, sondern Hunderte.";
@@ -289,7 +286,7 @@ public class BottomTutorialController : MonoBehaviour
                 return "Die Natur zählt hier in ganzen Zahlen. Elektrische Ladung ist nicht kontinuierlich, sondern gequantelt. Das kleinste Paket nennen wir Elementarladung: e.";
 
             case 36:
-                return "Heute wissen wir: e beträgt ungefähr 1,602 · 10^-19 Coulomb. Jedes Tröpfchen trägt ein ganzzahliges Vielfaches davon: 1e, 2e, 3e und so weiter.";
+                return "Heute wissen wir: e beträgt ungefähr 1,602 x 10^-19 Coulomb. Jedes Tröpfchen trägt ein ganzzahliges Vielfaches davon: 1e, 2e, 3e und so weiter.";
 
             case 37:
                 return "Viele Jahre später untersuchte der Wissenschaftshistoriker Gerald Holton meine Originalnotizbücher. Er fand mehr Messungen, als ich veröffentlicht hatte.";
@@ -321,71 +318,26 @@ public class BottomTutorialController : MonoBehaviour
     {
         switch (currentStep)
         {
-            case 0: return "A: Ein Kellerlabor in Chicago?\nB: Erzählen Sie mir davon.";
-            case 1: return "A: Also ist der VR-Aufbau vergrößert.\nB: Dann kann ich alles besser sehen.";
-            case 2: return "A: Was genau wollten Sie beweisen?\nB: Es geht um kleinste Ladungseinheiten.";
-            case 3: return "A: Öl statt Wasser war entscheidend.\nB: Fletcher hatte also eine wichtige Idee.";
-            case 4: return "A: Ich helfe Ihnen beim Experiment.\nB: Dann beginnen wir sorgfältig.";
-            case 5: return "A: Zeigen Sie mir den Aufbau.\nB: Ich möchte die Teile verstehen.";
-            case 6: return "A: Der Zerstäuber erzeugt Öltröpfchen.\nB: Einige Tröpfchen werden dabei geladen.";
-            case 7: return "A: Im echten Experiment war das schwer zu sehen.\nB: Die Tröpfchen waren extrem klein.";
-            case 8: return "A: In VR sehe ich die Bewegung direkt.\nB: Das macht die Beobachtung einfacher.";
-            case 9: return "A: Die Lichtquelle macht die Tröpfchen sichtbar.\nB: Ohne Licht keine Beobachtung.";
-            case 10: return "A: Zwischen den Platten entsteht das Feld.\nB: Der Abstand ist 6 Millimeter.";
-            case 11: return "A: Mit dem Regler ändere ich die Spannung.\nB: Damit steuere ich die elektrische Kraft.";
-            case 12: return "A: Zuerst wirkt nur die Schwerkraft.\nB: Der Tropfen fällt nach unten.";
-            case 13: return "A: Die Luft bremst den Tropfen.\nB: Die Fallgeschwindigkeit wird messbar.";
-            case 14: return "A: Der Radius führt zur Masse.\nB: Ohne Masse können wir q nicht berechnen.";
-
             case 15:
                 return "Aufgabe: Sprühe eine Gruppe mit r = 0,5 µm.\nRichte auf den Zerstäuber.\nDrücke den Trigger.";
-
-            case 16: return "A: Das kleine Tröpfchen fällt langsam.\nB: Seine Masse ist sehr klein.";
 
             case 17:
                 return "Aufgabe: Sprühe eine Gruppe mit r = 1,0 µm.\nRichte auf den Zerstäuber.\nDrücke den Trigger.";
 
-            case 18: return "A: Die Masse wächst stark mit dem Radius.\nB: Das Volumen hängt von r hoch 3 ab.";
-
             case 19:
                 return "Aufgabe: Sprühe eine Gruppe mit r = 1,5 µm.\nRichte auf den Zerstäuber.\nDrücke den Trigger.";
-
-            case 20: return "A: Der Radius ist ein wichtiger Messwert.\nB: Er beeinflusst Masse und Gewichtskraft.";
-            case 21: return "A: Jetzt beginnt die eigentliche Messung.\nB: Wir verwenden wieder zufällige Tröpfchen.";
-            case 22: return "A: Wir brauchen ein geladenes Tröpfchen.\nB: Dann erzeugen wir ein neues Tröpfchen.";
 
             case 23:
                 return "Aufgabe: Sprühe eine zufällige Gruppe.\nRichte auf den Zerstäuber.\nDrücke den Trigger.";
 
-            case 24: return "A: Ich wähle nun ein Tröpfchen aus.\nB: Wir untersuchen einen einzelnen Tropfen.";
-
             case 25:
                 return "Aufgabe: Wähle ein Öltröpfchen aus.\nZiele mit dem roten Strahl darauf.\nDrücke den Trigger.";
-
-            case 26: return "A: Jetzt sehe ich die Daten des Tropfens.\nB: Radius, Masse, Ladung und Spannung.";
-            case 27: return "A: Das elektrische Feld erzeugt eine Kraft.\nB: Die Kraft wirkt auf geladene Tröpfchen.";
-            case 28: return "A: Die Kräfte müssen im Gleichgewicht sein.\nB: Oben und unten müssen sich ausgleichen.";
 
             case 29:
                 return "Aufgabe: Stelle die Schwebe-Spannung ein.\nGreife den Spannungsregler.\nMit X kannst du feiner nachregeln.";
 
-            case 30: return "A: Das Tröpfchen schwebt.\nB: Das Gleichgewicht ist erreicht.";
-            case 31: return "A: Daraus berechnen wir q.\nB: Eine Messung ist geschafft.";
-            case 32: return "A: Eine Messung allein reicht nicht.\nB: Wir brauchen viele Tröpfchen.";
-            case 33: return "A: Die Werte bilden ein Muster.\nB: Mehr Daten zeigen mehr Struktur.";
-            case 34: return "A: Die Ladungen sind Vielfache.\nB: Es gibt keine Werte dazwischen.";
-            case 35: return "A: Ladung ist gequantelt.\nB: Die Natur zählt in Paketen.";
-            case 36: return "A: Das ist die Elementarladung.\nB: Jedes Tröpfchen trägt n · e.";
-            case 37: return "A: Was stand in den Notizbüchern?\nB: Das klingt nach Wissenschaftsgeschichte.";
-            case 38: return "A: Fehlerhafte Messungen kann man ausschließen.\nB: Man muss aber gute Gründe haben.";
-            case 39: return "A: Transparenz ist entscheidend.\nB: Die Unsicherheit gehört zur Messung.";
-            case 40: return "A: Der Wert war sehr nah am heutigen Wert.\nB: Die Messung war erstaunlich genau.";
-            case 41: return "A: Der Nachweis war wichtiger als die Zahl.\nB: Es ging um das Prinzip der Quantisierung.";
-            case 42: return "A: Fletcher gehört zur Geschichte dazu.\nB: Ohne Öltröpfchen wäre es nicht gelungen.";
-            case 43: return "A: Ich habe verstanden.\nB: Das Experiment ist abgeschlossen.";
-
             default:
-                return "";
+                return "A: Weiter";
         }
     }
 
