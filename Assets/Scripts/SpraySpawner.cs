@@ -20,10 +20,10 @@ public class SpraySpawner : MonoBehaviour
     public float spawnRadius = 0.01f;
     public bool useAimTarget = true;
     [Range(0f, 60f)] public float coneAngle = 18f;
-    public float baseLaunchSpeed = 2.0f;
-    public float speedRandomPercent = 0.25f;
-    public float lateralJitterSpeed = 0.35f;
-    public float upwardBias = 0.15f;
+    public float baseLaunchSpeed = 1.2f;
+    public float speedRandomPercent = 0.15f;
+    public float lateralJitterSpeed = 0.15f;
+    public float upwardBias = 0.05f;
 
     [Header("Tutorial Radius Mode")]
     public bool useTutorialRadiusMode = false;
@@ -43,13 +43,23 @@ public class SpraySpawner : MonoBehaviour
 
     [Header("Tutorial Charge Limits")]
     public int tutorialMinChargeMultiple = 1;
-    public int tutorialMaxChargeMultiple = 20;
+    public int tutorialMaxChargeMultiple = 30;
 
     [Header("Random Mode After Tutorial")]
     public float randomMinRadiusMicrometer = 0.5f;
     public float randomMaxRadiusMicrometer = 1.0f;
+
+    [Tooltip("If enabled, random droplets will still be physically hoverable within the voltage range.")]
+    public bool autoChargeForRandomDrops = true;
+
+    [Tooltip("Minimum target hover voltage for random droplets.")]
+    public float randomTargetHoverVoltageMin = 300f;
+
+    [Tooltip("Maximum target hover voltage for random droplets.")]
+    public float randomTargetHoverVoltageMax = 650f;
+
     public int randomMinChargeMultiple = 3;
-    public int randomMaxChargeMultiple = 12;
+    public int randomMaxChargeMultiple = 20;
 
     [Header("Nozzle Feedback")]
     public AudioSource nozzleSfxSource;
@@ -233,32 +243,67 @@ public class SpraySpawner : MonoBehaviour
 
         if (useTutorialRadiusMode)
         {
-            properties.minChargeMultiple = tutorialMinChargeMultiple;
-            properties.maxChargeMultiple = tutorialMaxChargeMultiple;
-
-            if (autoChargeForTutorialRadius)
-            {
-                properties.ApplyRadiusAndAutoCharge(
-                    tutorialRadiusMicrometer,
-                    targetHoverVoltage,
-                    plateSpacingMeters
-                );
-            }
-            else
-            {
-                properties.ApplyRadiusAndCharge(
-                    tutorialRadiusMicrometer,
-                    fixedTutorialChargeMultiple
-                );
-            }
+            ApplyTutorialRadiusProperties(properties);
         }
         else
         {
-            properties.minRadiusMicrometer = randomMinRadiusMicrometer;
-            properties.maxRadiusMicrometer = randomMaxRadiusMicrometer;
+            ApplyRandomExperimentProperties(properties);
+        }
+    }
+
+    private void ApplyTutorialRadiusProperties(DropProperties properties)
+    {
+        properties.minChargeMultiple = tutorialMinChargeMultiple;
+        properties.maxChargeMultiple = tutorialMaxChargeMultiple;
+
+        if (autoChargeForTutorialRadius)
+        {
+            properties.ApplyRadiusAndAutoCharge(
+                tutorialRadiusMicrometer,
+                targetHoverVoltage,
+                plateSpacingMeters
+            );
+        }
+        else
+        {
+            properties.ApplyRadiusAndCharge(
+                tutorialRadiusMicrometer,
+                fixedTutorialChargeMultiple
+            );
+        }
+    }
+
+    private void ApplyRandomExperimentProperties(DropProperties properties)
+    {
+        float radius = Random.Range(
+            Mathf.Min(randomMinRadiusMicrometer, randomMaxRadiusMicrometer),
+            Mathf.Max(randomMinRadiusMicrometer, randomMaxRadiusMicrometer)
+        );
+
+        if (autoChargeForRandomDrops)
+        {
             properties.minChargeMultiple = randomMinChargeMultiple;
             properties.maxChargeMultiple = randomMaxChargeMultiple;
-            properties.RandomizeAndApply();
+
+            float targetHoverVoltage = Random.Range(
+                Mathf.Min(randomTargetHoverVoltageMin, randomTargetHoverVoltageMax),
+                Mathf.Max(randomTargetHoverVoltageMin, randomTargetHoverVoltageMax)
+            );
+
+            properties.ApplyRadiusAndAutoCharge(
+                radius,
+                targetHoverVoltage,
+                plateSpacingMeters
+            );
+        }
+        else
+        {
+            int charge = Random.Range(
+                Mathf.Min(randomMinChargeMultiple, randomMaxChargeMultiple),
+                Mathf.Max(randomMinChargeMultiple, randomMaxChargeMultiple) + 1
+            );
+
+            properties.ApplyRadiusAndCharge(radius, charge);
         }
     }
 

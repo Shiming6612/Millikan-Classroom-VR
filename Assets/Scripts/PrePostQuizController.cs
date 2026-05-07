@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public class PrePostQuizController : MonoBehaviour
@@ -49,6 +51,7 @@ public class PrePostQuizController : MonoBehaviour
     public Color correctColor = Color.green;
     public Color wrongColor = Color.red;
     public float postFeedbackSeconds = 0.8f;
+    public bool forceSelectedColorToNormal = true;
 
     [Header("Flow")]
     public bool startPreQuizOnStart = true;
@@ -63,10 +66,16 @@ public class PrePostQuizController : MonoBehaviour
     private int currentQuestionIndex;
     private int correctPostCount;
     private bool waitingForPostFeedback;
+    private Coroutine feedbackRoutine;
 
     private Image imageA;
     private Image imageB;
     private Image imageC;
+
+    public IReadOnlyList<int> PreAnswers => preAnswers;
+    public IReadOnlyList<int> PostAnswers => postAnswers;
+    public int CorrectPostCount => correctPostCount;
+    public int QuestionCount => questions.Count;
 
     private void Awake()
     {
@@ -76,6 +85,9 @@ public class PrePostQuizController : MonoBehaviour
         CacheButtonImages();
         SetupQuestions();
         SetupButtons();
+
+        if (forceSelectedColorToNormal)
+            ApplySafeButtonColorBlocks();
     }
 
     private void Start()
@@ -125,8 +137,28 @@ public class PrePostQuizController : MonoBehaviour
         }
     }
 
+    private void ApplySafeButtonColorBlocks()
+    {
+        ApplySafeButtonColorBlock(answerButtonA);
+        ApplySafeButtonColorBlock(answerButtonB);
+        ApplySafeButtonColorBlock(answerButtonC);
+        ApplySafeButtonColorBlock(continueButton);
+    }
+
+    private void ApplySafeButtonColorBlock(Button button)
+    {
+        if (button == null)
+            return;
+
+        ColorBlock colors = button.colors;
+        colors.selectedColor = colors.normalColor;
+        button.colors = colors;
+    }
+
     public void StartPreQuiz()
     {
+        StopFeedbackRoutineIfNeeded();
+
         currentMode = QuizMode.PreQuiz;
         currentQuestionIndex = 0;
         correctPostCount = 0;
@@ -142,6 +174,8 @@ public class PrePostQuizController : MonoBehaviour
 
     public void StartPostQuiz()
     {
+        StopFeedbackRoutineIfNeeded();
+
         currentMode = QuizMode.PostQuiz;
         currentQuestionIndex = 0;
         correctPostCount = 0;
@@ -162,15 +196,18 @@ public class PrePostQuizController : MonoBehaviour
             return;
         }
 
+        ClearButtonSelection();
         ResetButtonColors();
         SetAnswerButtonsInteractable(true);
 
         QuizQuestion q = questions[currentQuestionIndex];
 
         if (modeText != null)
+        {
             modeText.text = currentMode == QuizMode.PreQuiz
                 ? "Vorwissenstest"
                 : "Wissenstest nach dem Experiment";
+        }
 
         if (questionCounterText != null)
             questionCounterText.text = "Frage " + (currentQuestionIndex + 1) + "/" + questions.Count;
@@ -194,6 +231,8 @@ public class PrePostQuizController : MonoBehaviour
             else
                 scoreText.text = correctPostCount + "/" + questions.Count;
         }
+
+        Canvas.ForceUpdateCanvases();
     }
 
     private void SelectAnswer(int selectedIndex)
@@ -201,11 +240,16 @@ public class PrePostQuizController : MonoBehaviour
         if (waitingForPostFeedback)
             return;
 
+        if (currentQuestionIndex < 0 || currentQuestionIndex >= questions.Count)
+            return;
+
         QuizQuestion q = questions[currentQuestionIndex];
 
         if (currentMode == QuizMode.PreQuiz)
         {
             preAnswers.Add(selectedIndex);
+            ClearButtonSelection();
+
             currentQuestionIndex++;
             ShowCurrentQuestion();
             return;
@@ -218,18 +262,23 @@ public class PrePostQuizController : MonoBehaviour
             correctPostCount++;
 
         ShowPostFeedback(selectedIndex, q.correctIndex);
-        SetAnswerButtonsInteractable(false);
 
         if (scoreText != null)
             scoreText.text = correctPostCount + "/" + questions.Count;
 
         waitingForPostFeedback = true;
-        Invoke(nameof(GoToNextPostQuestion), postFeedbackSeconds);
+        feedbackRoutine = StartCoroutine(GoToNextPostQuestionAfterDelay());
     }
 
-    private void GoToNextPostQuestion()
+    private IEnumerator GoToNextPostQuestionAfterDelay()
     {
+        yield return new WaitForSeconds(postFeedbackSeconds);
+
         waitingForPostFeedback = false;
+        feedbackRoutine = null;
+
+        ClearButtonSelection();
+
         currentQuestionIndex++;
         ShowCurrentQuestion();
     }
@@ -246,6 +295,10 @@ public class PrePostQuizController : MonoBehaviour
 
     private void FinishQuiz()
     {
+        StopFeedbackRoutineIfNeeded();
+        ClearButtonSelection();
+        ResetButtonColors();
+
         if (currentMode == QuizMode.PreQuiz)
         {
             SetAfterPreQuizUnlocked(true);
@@ -264,6 +317,7 @@ public class PrePostQuizController : MonoBehaviour
 
     private void ContinueAfterResult()
     {
+        ClearButtonSelection();
         HideWall();
     }
 
@@ -329,6 +383,35 @@ public class PrePostQuizController : MonoBehaviour
 
         if (answerButtonC != null)
             answerButtonC.interactable = interactable;
+    }
+
+    private void ClearButtonSelection()
+    {
+        if (EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(null);
+
+        if (answerButtonA != null)
+            answerButtonA.OnDeselect(null);
+
+        if (answerButtonB != null)
+            answerButtonB.OnDeselect(null);
+
+        if (answerButtonC != null)
+            answerButtonC.OnDeselect(null);
+
+        if (continueButton != null)
+            continueButton.OnDeselect(null);
+    }
+
+    private void StopFeedbackRoutineIfNeeded()
+    {
+        if (feedbackRoutine != null)
+        {
+            StopCoroutine(feedbackRoutine);
+            feedbackRoutine = null;
+        }
+
+        waitingForPostFeedback = false;
     }
 
     private void SetAfterPreQuizUnlocked(bool unlocked)

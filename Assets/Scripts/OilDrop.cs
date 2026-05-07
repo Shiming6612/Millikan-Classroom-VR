@@ -4,49 +4,65 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public class OilDrop : MonoBehaviour
 {
-    [Header("Gravity (simulation)")]
-    [Tooltip("Bigger magnitude = faster fall (scene scale).")]
-    public Vector3 customGravity = new Vector3(0f, -25f, 0f);
+    [Header("Physical Values For Calculation")]
+    [Tooltip("Keep this at -9.81 so the hover voltage calculation stays physically correct.")]
+    public Vector3 customGravity = new Vector3(0f, -9.81f, 0f);
 
-    [Header("Air Physics (for realism)")]
-    public bool useBuoyancy = true;
-    public bool useStokesDrag = true;
+    [Header("Launch Phase")]
+    [Tooltip("How long the droplet keeps its launch movement before slow observation mode starts.")]
+    public float launchPhaseDuration = 0.45f;
 
-    [Tooltip("Oil density (kg/m^3). Typical ~ 800-900.")]
-    public float oilDensity = 860f;
+    [Tooltip("How much of the spray velocity is kept during launch.")]
+    public float launchVelocityScale = 0.65f;
 
-    [Tooltip("Air density (kg/m^3). Typical ~ 1.2.")]
-    public float airDensity = 1.2f;
+    [Tooltip("Maximum speed during launch phase.")]
+    public float maxLaunchSpeed = 0.8f;
 
-    [Tooltip("Air dynamic viscosity (Pa*s). Typical ~ 1.81e-5.")]
-    public float airViscosity = 1.81e-5f;
+    [Header("Observation Fall Motion")]
+    [Tooltip("Base falling speed for a 1.0 µm droplet after launch phase.")]
+    public float baseFallSpeed = 0.08f;
 
-    [Tooltip("Multiply drag for scene-tuning if needed (keep 1 for physical).")]
-    public float dragScale = 1f;
+    [Tooltip("Maximum falling speed after launch phase.")]
+    public float maxFallSpeed = 0.22f;
 
-    [Header("Other")]
+    [Tooltip("How fast the droplet changes from launch movement to stable falling.")]
+    public float velocitySmoothing = 5f;
+
+    [Header("Radius Speed Difference")]
+    public bool radiusAffectsFallSpeed = true;
+    public float referenceRadiusMicrometer = 1.0f;
+    public float radiusFallSpeedPower = 1.6f;
+
+    [Header("Horizontal Damping After Launch")]
+    [Tooltip("How quickly horizontal movement is reduced after the launch phase.")]
+    public float horizontalDamping = 4f;
+
+    [Header("Collision")]
     public bool destroyOnCollision = false;
 
-    private Rigidbody _rb;
-    private Vector3 _startPosition;
-    private bool _active = false;
+    private Rigidbody rb;
+    private Vector3 startPosition;
+    private bool activeDrop;
 
-    private float _radiusM = 0.0005f; // computed from mass + oilDensity
-    private float _lastMass = -1f;
+    private float launchStartTime;
+    private DropProperties dropProperties;
 
-    void Awake()
+    private void Awake()
     {
-        _rb = GetComponent<Rigidbody>();
+        rb = GetComponent<Rigidbody>();
+        dropProperties = GetComponent<DropProperties>();
 
-        _rb.useGravity = false;
-        _rb.isKinematic = false;
-        _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        _rb.interpolation = RigidbodyInterpolation.Interpolate;
+        if (dropProperties == null)
+            dropProperties = GetComponentInChildren<DropProperties>();
 
-        // IMPORTANT: do not use built-in damping if we do physical drag
-        _rb.linearDamping = 0f;
+        rb.useGravity = false;
+        rb.isKinematic = false;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.linearDamping = 0f;
+        rb.angularDamping = 0f;
 
-        var col = GetComponent<Collider>();
+        Collider col = GetComponent<Collider>();
         col.isTrigger = false;
 
         gameObject.SetActive(false);
@@ -54,84 +70,99 @@ public class OilDrop : MonoBehaviour
 
     public void Launch(Vector3 worldPos, Vector3 initialVelocity)
     {
-        _startPosition = worldPos;
+        startPosition = worldPos;
         transform.position = worldPos;
 
-        _rb.linearVelocity = Vector3.zero;
-        _rb.angularVelocity = Vector3.zero;
-        _rb.linearVelocity = initialVelocity;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
 
-        _active = true;
+        Vector3 launchVelocity = initialVelocity * Mathf.Max(0f, launchVelocityScale);
+        rb.linearVelocity = Vector3.ClampMagnitude(launchVelocity, maxLaunchSpeed);
 
-        // ensure radius computed with current mass
-        RecomputeRadiusIfNeeded(force: true);
+        launchStartTime = Time.time;
+        activeDrop = true;
 
         gameObject.SetActive(true);
     }
 
     public void ResetDrop()
     {
-        _active = false;
+        activeDrop = false;
 
-        _rb.linearVelocity = Vector3.zero;
-        _rb.angularVelocity = Vector3.zero;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
 
-        transform.position = _startPosition;
+        transform.position = startPosition;
         gameObject.SetActive(false);
     }
 
-    void FixedUpdate()
+    private void FixedUpdate()
     {
-        if (!_active) return;
+        if (!activeDrop)
+            return;
 
-        RecomputeRadiusIfNeeded(force: false);
+        float timeSinceLaunch = Time.time - launchStartTime;
 
-        // gravity (+ buoyancy scaling)
-        Vector3 gEff = customGravity;
-        if (useBuoyancy && oilDensity > 1e-6f)
+        if (timeSinceLaunch < launchPhaseDuration)
         {
-            // buoyancy reduces effective gravity by rho_air/rho_oil
-            float factor = 1f - Mathf.Clamp01(airDensity / oilDensity);
-            gEff *= factor;
+            LimitLaunchSpeed();
+            return;
         }
-        _rb.AddForce(gEff, ForceMode.Acceleration);
 
-        // Stokes drag: Fd = 6*pi*eta*r*v  => a = (Fd/m) opposite to v
-        if (useStokesDrag)
-        {
-            Vector3 v = _rb.linearVelocity;
-            if (v.sqrMagnitude > 1e-12f)
-            {
-                float m = Mathf.Max(1e-6f, _rb.mass);
-                float coeff = (6f * Mathf.PI * airViscosity * _radiusM) / m; // 1/s
-                Vector3 aDrag = -coeff * v * Mathf.Max(0f, dragScale);
-                _rb.AddForce(aDrag, ForceMode.Acceleration);
-            }
-        }
+        ApplyObservationMotion();
     }
 
-    private void RecomputeRadiusIfNeeded(bool force)
+    private void LimitLaunchSpeed()
     {
-        float m = Mathf.Max(1e-9f, _rb.mass);
-        if (!force && Mathf.Abs(m - _lastMass) < 1e-9f) return;
+        rb.linearVelocity = Vector3.ClampMagnitude(rb.linearVelocity, Mathf.Max(0.01f, maxLaunchSpeed));
+    }
 
-        _lastMass = m;
+    private void ApplyObservationMotion()
+    {
+        Vector3 currentVelocity = rb.linearVelocity;
 
-        // r from mass and density: r = (3m/(4*pi*rho))^(1/3)
-        if (oilDensity > 1e-6f)
+        Vector3 horizontalVelocity = new Vector3(currentVelocity.x, 0f, currentVelocity.z);
+        horizontalVelocity = Vector3.Lerp(
+            horizontalVelocity,
+            Vector3.zero,
+            Time.fixedDeltaTime * horizontalDamping
+        );
+
+        float targetFallSpeed = GetTargetFallSpeed();
+
+        Vector3 targetVelocity = new Vector3(
+            horizontalVelocity.x,
+            -targetFallSpeed,
+            horizontalVelocity.z
+        );
+
+        rb.linearVelocity = Vector3.Lerp(
+            currentVelocity,
+            targetVelocity,
+            Time.fixedDeltaTime * velocitySmoothing
+        );
+    }
+
+    private float GetTargetFallSpeed()
+    {
+        float radiusFactor = 1f;
+
+        if (radiusAffectsFallSpeed && dropProperties != null && dropProperties.RadiusMicrometer > 0f)
         {
-            _radiusM = Mathf.Pow((3f * m) / (4f * Mathf.PI * oilDensity), 1f / 3f);
-            _radiusM = Mathf.Clamp(_radiusM, 1e-6f, 1f);
+            float reference = Mathf.Max(0.01f, referenceRadiusMicrometer);
+            radiusFactor = dropProperties.RadiusMicrometer / reference;
+            radiusFactor = Mathf.Pow(radiusFactor, Mathf.Max(0f, radiusFallSpeedPower));
         }
-        else
-        {
-            _radiusM = 0.0005f;
-        }
+
+        float fallSpeed = baseFallSpeed * radiusFactor;
+        return Mathf.Clamp(fallSpeed, 0.01f, maxFallSpeed);
     }
 
     private void OnCollisionEnter(Collision collision)
     {
-        if (!destroyOnCollision) return;
+        if (!destroyOnCollision)
+            return;
+
         ResetDrop();
     }
 }

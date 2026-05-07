@@ -8,13 +8,13 @@ public class DropProperties : MonoBehaviour
     public float minRadiusMicrometer = 0.5f;
     public float maxRadiusMicrometer = 1.0f;
 
-    [Header("Charge Range")]
+    [Header("Charge")]
     public int minChargeMultiple = 1;
     public int maxChargeMultiple = 12;
 
     [Header("Options")]
     public bool randomizeOnSpawn = false;
-    public bool applyMassToRigidbody = false;
+    public bool applyMassToRigidbody = true;
 
     [Header("Visual Radius")]
     public bool applyVisualScale = true;
@@ -85,16 +85,22 @@ public class DropProperties : MonoBehaviour
         float plateSpacingMeters,
         float gravity = 9.81f)
     {
-        float mass = CalculateMassFromRadius(radiusMicrometer);
+        float radius = Mathf.Max(0.01f, radiusMicrometer);
+        float mass = CalculateMassFromRadius(radius);
+
         float targetVoltage = Mathf.Max(1f, targetHoverVoltage);
         float d = Mathf.Max(0.0001f, plateSpacingMeters);
 
         float requiredChargeC = mass * gravity * d / targetVoltage;
         int chargeMultiple = Mathf.RoundToInt(requiredChargeC / (float)ElementaryCharge);
 
-        chargeMultiple = Mathf.Clamp(chargeMultiple, minChargeMultiple, maxChargeMultiple);
+        chargeMultiple = Mathf.Clamp(
+            chargeMultiple,
+            Mathf.Min(minChargeMultiple, maxChargeMultiple),
+            Mathf.Max(minChargeMultiple, maxChargeMultiple)
+        );
 
-        ApplyRadiusAndCharge(radiusMicrometer, chargeMultiple);
+        ApplyRadiusAndCharge(radius, chargeMultiple);
     }
 
     private float CalculateMassFromRadius(float radiusMicrometer)
