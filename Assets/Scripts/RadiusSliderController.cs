@@ -18,14 +18,12 @@ public class RadiusSliderController : MonoBehaviour
     public bool allowRayControlOnlyDuringTask = true;
     public bool invertRayDirection = false;
     public float maxRayDistance = 5f;
-
-    [Tooltip("Extra clickable area around the slider rect, useful in VR.")]
     public float hitPadding = 35f;
 
     [Header("Radius Settings")]
-    public float minRadiusMicrometer = 0.5f;
-    public float maxRadiusMicrometer = 1.5f;
-    public float defaultRadiusMicrometer = 0.5f;
+    public float minRadiusMicrometer = 0.3f;
+    public float maxRadiusMicrometer = 2.0f;
+    public float defaultRadiusMicrometer = 0.3f;
 
     [Header("Behaviour")]
     public bool clearDropsWhenRadiusChanges = true;
@@ -111,10 +109,7 @@ public class RadiusSliderController : MonoBehaviour
 
     public float GetCurrentRadiusMicrometer()
     {
-        if (radiusSlider == null)
-            return defaultRadiusMicrometer;
-
-        return radiusSlider.value;
+        return radiusSlider != null ? radiusSlider.value : defaultRadiusMicrometer;
     }
 
     private void UpdateRayControl()
@@ -125,19 +120,14 @@ public class RadiusSliderController : MonoBehaviour
         if (rayOrigin == null || radiusSlider == null)
             return;
 
-        bool pressed = OVRInput.Get(controlButton);
-        if (!pressed)
+        if (!OVRInput.Get(controlButton))
             return;
 
         if (sliderRect == null)
             sliderRect = radiusSlider.GetComponent<RectTransform>();
 
-        if (sliderRect == null)
-            return;
-
         Vector3 direction = invertRayDirection ? -rayOrigin.forward : rayOrigin.forward;
         Ray ray = new Ray(rayOrigin.position, direction);
-
         Plane plane = new Plane(sliderRect.forward, sliderRect.position);
 
         if (!plane.Raycast(ray, out float distance))
@@ -147,7 +137,6 @@ public class RadiusSliderController : MonoBehaviour
             return;
 
         Vector3 hitWorld = ray.GetPoint(distance);
-
         Vector2 localPoint = sliderRect.InverseTransformPoint(hitWorld);
         Rect rect = sliderRect.rect;
 
@@ -161,25 +150,7 @@ public class RadiusSliderController : MonoBehaviour
         if (!paddedRect.Contains(localPoint))
             return;
 
-        float normalized;
-
-        if (radiusSlider.direction == Slider.Direction.LeftToRight)
-        {
-            normalized = Mathf.InverseLerp(rect.xMin, rect.xMax, localPoint.x);
-        }
-        else if (radiusSlider.direction == Slider.Direction.RightToLeft)
-        {
-            normalized = 1f - Mathf.InverseLerp(rect.xMin, rect.xMax, localPoint.x);
-        }
-        else if (radiusSlider.direction == Slider.Direction.BottomToTop)
-        {
-            normalized = Mathf.InverseLerp(rect.yMin, rect.yMax, localPoint.y);
-        }
-        else
-        {
-            normalized = 1f - Mathf.InverseLerp(rect.yMin, rect.yMax, localPoint.y);
-        }
-
+        float normalized = Mathf.InverseLerp(rect.xMin, rect.xMax, localPoint.x);
         normalized = Mathf.Clamp01(normalized);
 
         float radius = Mathf.Lerp(radiusSlider.minValue, radiusSlider.maxValue, normalized);
@@ -224,6 +195,6 @@ public class RadiusSliderController : MonoBehaviour
     private void UpdateRadiusText(float radius)
     {
         if (radiusText != null)
-            radiusText.text = "Radius: " + radius.ToString("0.00") + " µm";
+            radiusText.text = "Radius: " + radius.ToString("0.00") + " \u00B5m";
     }
 }

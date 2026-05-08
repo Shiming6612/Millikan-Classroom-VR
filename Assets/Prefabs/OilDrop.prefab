@@ -152,13 +152,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   customGravity: {x: 0, y: -9.81, z: 0}
-  sceneGravityAcceleration: 0.12
-  sceneMaxSpeed: 0.18
-  sceneDamping: 4
-  launchVelocityScale: 0.15
+  launchPhaseDuration: 0.45
+  launchVelocityScale: 0.75
+  maxLaunchSpeed: 1
+  baseFallSpeed: 0.16
+  maxVerticalSpeed: 0.35
+  velocitySmoothing: 6
+  horizontalDamping: 4
   radiusAffectsFallSpeed: 1
   referenceRadiusMicrometer: 1
   radiusFallSpeedPower: 1.5
+  hoverDeadZone: 0.03
+  electricResponsePower: 1
+  resetFieldRatioWhenOutside: 1
   destroyOnCollision: 0
 --- !u!114 &5350693255552433801
 MonoBehaviour:

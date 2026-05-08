@@ -7,18 +7,18 @@ public class SimpleForceArrowOverlay : MonoBehaviour
     public ElectricFieldVolume fieldVolume;
     public VoltageKnobInput voltageSource;
 
-    [Header("Arrow Objects")]
+    [Header("Arrows")]
     public Transform gravityArrow;
     public Transform buoyancyArrow;
     public Transform electricArrow;
 
-    [Header("Follow")]
+    [Header("Offsets")]
     public Vector3 overlayOffset = Vector3.zero;
     public Vector3 gravityOffset = new Vector3(-0.035f, 0f, 0f);
     public Vector3 buoyancyOffset = Vector3.zero;
     public Vector3 electricOffset = new Vector3(0.035f, 0f, 0f);
 
-    [Header("Displayed Lengths")]
+    [Header("Lengths")]
     public float gravityLength = 0.03f;
     public float buoyancyLength = 0.004f;
     public float electricMinLength = 0.002f;
@@ -29,11 +29,7 @@ public class SimpleForceArrowOverlay : MonoBehaviour
     public bool hideElectricWhenVoltageZero = true;
     public float minVoltageToShowElectric = 0.01f;
 
-    [Header("Debug")]
-    public bool logDebug = false;
-
     private BoxCollider fieldBox;
-    private SelectableDrop currentSelected;
 
     private void Awake()
     {
@@ -45,23 +41,17 @@ public class SimpleForceArrowOverlay : MonoBehaviour
 
     private void Update()
     {
-        currentSelected = selectionManager != null ? selectionManager.CurrentSelected : null;
+        SelectableDrop selected = selectionManager != null ? selectionManager.CurrentSelected : null;
 
-        if (currentSelected == null)
+        if (selected == null)
         {
             HideAll();
             return;
         }
 
-        Transform target = GetSelectedTargetTransform(currentSelected);
+        Transform target = GetSelectedTargetTransform(selected);
 
-        if (target == null)
-        {
-            HideAll();
-            return;
-        }
-
-        if (!IsInsideField(target.position))
+        if (target == null || !IsInsideField(target.position))
         {
             HideAll();
             return;
@@ -71,47 +61,21 @@ public class SimpleForceArrowOverlay : MonoBehaviour
 
         UpdateGravityArrow();
         UpdateBuoyancyArrow();
-        UpdateElectricArrow(currentSelected);
-    }
-
-    private Transform GetSelectedTargetTransform(SelectableDrop sel)
-    {
-        if (sel == null)
-            return null;
-
-        Rigidbody rb = sel.GetComponent<Rigidbody>();
-
-        if (rb == null)
-            rb = sel.GetComponentInParent<Rigidbody>();
-
-        if (rb == null)
-            rb = sel.GetComponentInChildren<Rigidbody>();
-
-        return rb != null ? rb.transform : sel.transform;
-    }
-
-    private bool IsInsideField(Vector3 worldPos)
-    {
-        if (fieldBox == null)
-            return false;
-
-        return fieldBox.bounds.Contains(worldPos);
+        UpdateElectricArrow(selected);
     }
 
     private void UpdateGravityArrow()
     {
-        if (gravityArrow == null)
-            return;
+        if (gravityArrow == null) return;
 
         gravityArrow.localPosition = gravityOffset;
-        SetArrowLengthAndDirection(gravityArrow, gravityLength, Vector3.down);
+        SetArrow(gravityArrow, gravityLength, Vector3.down);
         gravityArrow.gameObject.SetActive(true);
     }
 
     private void UpdateBuoyancyArrow()
     {
-        if (buoyancyArrow == null)
-            return;
+        if (buoyancyArrow == null) return;
 
         if (!showBuoyancyArrow)
         {
@@ -120,24 +84,23 @@ public class SimpleForceArrowOverlay : MonoBehaviour
         }
 
         buoyancyArrow.localPosition = buoyancyOffset;
-        SetArrowLengthAndDirection(buoyancyArrow, buoyancyLength, Vector3.up);
+        SetArrow(buoyancyArrow, buoyancyLength, Vector3.up);
         buoyancyArrow.gameObject.SetActive(true);
     }
 
-    private void UpdateElectricArrow(SelectableDrop sel)
+    private void UpdateElectricArrow(SelectableDrop selected)
     {
-        if (electricArrow == null)
-            return;
+        if (electricArrow == null) return;
 
-        float currentVoltage = voltageSource != null ? Mathf.Abs(voltageSource.CurrentVoltage) : 0f;
+        float voltage = voltageSource != null ? Mathf.Abs(voltageSource.CurrentVoltage) : 0f;
 
-        if (hideElectricWhenVoltageZero && currentVoltage <= minVoltageToShowElectric)
+        if (hideElectricWhenVoltageZero && voltage <= minVoltageToShowElectric)
         {
             electricArrow.gameObject.SetActive(false);
             return;
         }
 
-        float hoverVoltage = GetHoverVoltage(sel);
+        float hoverVoltage = GetHoverVoltage(selected);
 
         if (hoverVoltage <= 1e-6f)
         {
@@ -145,76 +108,71 @@ public class SimpleForceArrowOverlay : MonoBehaviour
             return;
         }
 
-        float ratio = currentVoltage / hoverVoltage;
-
-        // PDF simplified visualization:
-        // at hover voltage, electric arrow reaches gravity arrow length.
-        float electricLength = gravityLength * ratio;
-        electricLength = Mathf.Clamp(electricLength, electricMinLength, electricMaxLength);
+        float ratio = voltage / hoverVoltage;
+        float length = gravityLength * ratio;
+        length = Mathf.Clamp(length, electricMinLength, electricMaxLength);
 
         electricArrow.localPosition = electricOffset;
-        SetArrowLengthAndDirection(electricArrow, electricLength, Vector3.up);
+        SetArrow(electricArrow, length, Vector3.up);
         electricArrow.gameObject.SetActive(true);
-
-        if (logDebug)
-        {
-            Debug.Log(
-                "[ForceOverlay] U=" + currentVoltage.ToString("0.0") +
-                " V, U_hover=" + hoverVoltage.ToString("0.0") +
-                " V, electricLength=" + electricLength.ToString("0.000")
-            );
-        }
     }
 
-    private float GetHoverVoltage(SelectableDrop sel)
+    private float GetHoverVoltage(SelectableDrop selected)
     {
-        if (sel == null || fieldVolume == null)
+        if (selected == null || fieldVolume == null)
             return 0f;
 
-        DropProperties dp = FindDropProperties(sel);
+        DropProperties dp = FindDropProperties(selected);
+        if (dp == null) return 0f;
 
-        if (dp == null)
-            return 0f;
-
-        float m = Mathf.Max(1e-18f, dp.MassKg);
-        float q = Mathf.Abs(dp.ChargeC);
-
-        if (q < 1e-20f)
-            return 0f;
+        float mass = Mathf.Max(1e-18f, dp.MassKg);
+        float charge = Mathf.Abs(dp.ChargeC);
+        if (charge < 1e-20f) return 0f;
 
         float d = fieldVolume.GetPlateSpacingMeters();
-
-        if (d <= 1e-6f)
-            return 0f;
+        if (d <= 1e-6f) return 0f;
 
         Vector3 dir = fieldVolume.fieldDirection.sqrMagnitude > 1e-6f
             ? fieldVolume.fieldDirection.normalized
             : Vector3.up;
 
-        Vector3 g = GetGravityVector(sel);
+        Vector3 gravity = GetGravityVector(selected);
+        float g = Mathf.Abs(Vector3.Dot(gravity, dir));
 
-        float gAlong = Mathf.Abs(Vector3.Dot(g, dir));
         float scale = Mathf.Max(1e-6f, fieldVolume.fieldScale);
 
-        // PDF formula:
-        // U_hover = m * g * d / q
-        return (m * gAlong * d) / (q * scale);
+        return (mass * g * d) / (charge * scale);
     }
 
-    private Vector3 GetGravityVector(SelectableDrop sel)
+    private Transform GetSelectedTargetTransform(SelectableDrop selected)
+    {
+        Rigidbody rb = selected.GetComponent<Rigidbody>();
+
+        if (rb == null)
+            rb = selected.GetComponentInParent<Rigidbody>();
+
+        if (rb == null)
+            rb = selected.GetComponentInChildren<Rigidbody>();
+
+        return rb != null ? rb.transform : selected.transform;
+    }
+
+    private bool IsInsideField(Vector3 position)
+    {
+        return fieldBox != null && fieldBox.bounds.Contains(position);
+    }
+
+    private Vector3 GetGravityVector(SelectableDrop selected)
     {
         Vector3 gravity = Physics.gravity;
 
-        if (sel == null)
-            return gravity;
-
-        Rigidbody rb = sel.GetComponent<Rigidbody>();
+        Rigidbody rb = selected.GetComponent<Rigidbody>();
 
         if (rb == null)
-            rb = sel.GetComponentInParent<Rigidbody>();
+            rb = selected.GetComponentInParent<Rigidbody>();
 
         if (rb == null)
-            rb = sel.GetComponentInChildren<Rigidbody>();
+            rb = selected.GetComponentInChildren<Rigidbody>();
 
         if (rb != null)
         {
@@ -227,27 +185,21 @@ public class SimpleForceArrowOverlay : MonoBehaviour
         return gravity;
     }
 
-    private DropProperties FindDropProperties(SelectableDrop sel)
+    private DropProperties FindDropProperties(SelectableDrop selected)
     {
-        if (sel == null)
-            return null;
-
-        DropProperties dp = sel.GetComponent<DropProperties>();
+        DropProperties dp = selected.GetComponent<DropProperties>();
 
         if (dp == null)
-            dp = sel.GetComponentInParent<DropProperties>();
+            dp = selected.GetComponentInParent<DropProperties>();
 
         if (dp == null)
-            dp = sel.GetComponentInChildren<DropProperties>();
+            dp = selected.GetComponentInChildren<DropProperties>();
 
         return dp;
     }
 
-    private void SetArrowLengthAndDirection(Transform arrow, float length, Vector3 direction)
+    private void SetArrow(Transform arrow, float length, Vector3 direction)
     {
-        if (arrow == null)
-            return;
-
         arrow.right = -direction.normalized;
 
         Vector3 scale = arrow.localScale;
@@ -257,13 +209,8 @@ public class SimpleForceArrowOverlay : MonoBehaviour
 
     private void HideAll()
     {
-        if (gravityArrow != null)
-            gravityArrow.gameObject.SetActive(false);
-
-        if (buoyancyArrow != null)
-            buoyancyArrow.gameObject.SetActive(false);
-
-        if (electricArrow != null)
-            electricArrow.gameObject.SetActive(false);
+        if (gravityArrow != null) gravityArrow.gameObject.SetActive(false);
+        if (buoyancyArrow != null) buoyancyArrow.gameObject.SetActive(false);
+        if (electricArrow != null) electricArrow.gameObject.SetActive(false);
     }
 }

@@ -161,6 +161,7 @@ public class VoltageKnobInput : MonoBehaviour
         float targetVoltage = grabStartVoltage + (usedDeg / denom) * range;
 
         float clampedVoltage = Mathf.Clamp(targetVoltage, minVoltage, maxVoltage);
+
         if (!Mathf.Approximately(clampedVoltage, targetVoltage))
         {
             targetVoltage = clampedVoltage;
@@ -183,6 +184,7 @@ public class VoltageKnobInput : MonoBehaviour
         RefreshInteractorCache();
 
         Transform chosen = FindSelectingInteractorTransformFromGrab();
+
         if (chosen == null)
             chosen = ChooseNearestController();
 
@@ -190,6 +192,7 @@ public class VoltageKnobInput : MonoBehaviour
         {
             if (debugLogs)
                 Debug.LogWarning("[VoltageKnobInput] BeginGrab failed: no valid interactor found.");
+
             return;
         }
 
@@ -197,6 +200,7 @@ public class VoltageKnobInput : MonoBehaviour
         axisWorld = knobTransform.TransformDirection(knobLocalAxis.normalized);
 
         Vector3 startVec = Vector3.ProjectOnPlane(activeController.position - pivot.position, axisWorld);
+
         if (startVec.sqrMagnitude < 1e-6f)
             startVec = Vector3.ProjectOnPlane(activeController.forward, axisWorld);
 
@@ -204,6 +208,7 @@ public class VoltageKnobInput : MonoBehaviour
         {
             if (debugLogs)
                 Debug.LogWarning("[VoltageKnobInput] BeginGrab failed: interactor vector too small.");
+
             activeController = null;
             return;
         }
@@ -229,9 +234,27 @@ public class VoltageKnobInput : MonoBehaviour
         grabbed = false;
         activeController = null;
         hasPrevVector = false;
+        accumDeg = 0f;
 
         SetVoltage(CurrentVoltage, true);
         RefreshVisualState();
+    }
+
+    public void ResetVoltageToZero()
+    {
+        grabbed = false;
+        activeController = null;
+        hasPrevVector = false;
+        accumDeg = 0f;
+        grabStartVoltage = minVoltage;
+
+        SetVoltage(minVoltage, true);
+        RefreshVisualState();
+    }
+
+    public void SetVoltageFromExternal(float voltage)
+    {
+        SetVoltage(voltage, true);
     }
 
     private Transform FindSelectingInteractorTransformFromGrab()
@@ -240,6 +263,7 @@ public class VoltageKnobInput : MonoBehaviour
             return null;
 
         var views = grabInteractable.SelectingInteractorViews;
+
         if (views == null)
             return null;
 
@@ -259,24 +283,27 @@ public class VoltageKnobInput : MonoBehaviour
         TryAddInteractor(leftControllerTransform);
         TryAddInteractor(rightControllerTransform);
 
-        if (autoFindInteractorTransforms)
+        if (!autoFindInteractorTransforms)
+            return;
+
+        Transform[] all = FindObjectsByType<Transform>(FindObjectsSortMode.None);
+
+        foreach (Transform t in all)
         {
-            Transform[] all = FindObjectsByType<Transform>(FindObjectsSortMode.None);
+            if (t == null)
+                continue;
 
-            foreach (Transform t in all)
+            for (int i = 0; i < interactorNameHints.Length; i++)
             {
-                if (t == null) continue;
+                string hint = interactorNameHints[i];
 
-                for (int i = 0; i < interactorNameHints.Length; i++)
+                if (string.IsNullOrWhiteSpace(hint))
+                    continue;
+
+                if (t.name.Contains(hint))
                 {
-                    string hint = interactorNameHints[i];
-                    if (string.IsNullOrWhiteSpace(hint)) continue;
-
-                    if (t.name.Contains(hint))
-                    {
-                        TryAddInteractor(t);
-                        break;
-                    }
+                    TryAddInteractor(t);
+                    break;
                 }
             }
         }
@@ -284,8 +311,12 @@ public class VoltageKnobInput : MonoBehaviour
 
     private void TryAddInteractor(Transform t)
     {
-        if (t == null) return;
-        if (cachedInteractors.Contains(t)) return;
+        if (t == null)
+            return;
+
+        if (cachedInteractors.Contains(t))
+            return;
+
         cachedInteractors.Add(t);
     }
 
@@ -296,9 +327,11 @@ public class VoltageKnobInput : MonoBehaviour
 
         foreach (Transform t in cachedInteractors)
         {
-            if (t == null) continue;
+            if (t == null)
+                continue;
 
             float d = Vector3.Distance(t.position, transform.position);
+
             if (d < bestDist)
             {
                 bestDist = d;
@@ -312,7 +345,9 @@ public class VoltageKnobInput : MonoBehaviour
     private bool IsLeftXHeld()
     {
         InputDevice left = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
-        if (!left.isValid) return false;
+
+        if (!left.isValid)
+            return false;
 
         bool value;
         return left.TryGetFeatureValue(CommonUsages.primaryButton, out value) && value;
@@ -355,7 +390,8 @@ public class VoltageKnobInput : MonoBehaviour
 
     private void ApplyVisualRotationFromVoltage()
     {
-        if (visualRoot == null) return;
+        if (visualRoot == null)
+            return;
 
         float t = Mathf.InverseLerp(minVoltage, maxVoltage, CurrentVoltage);
         float angle = Mathf.Lerp(visualMinAngle, visualMaxAngle, t);
@@ -367,7 +403,8 @@ public class VoltageKnobInput : MonoBehaviour
 
     private void InitMaterials()
     {
-        if (targetRenderers == null || targetRenderers.Length == 0) return;
+        if (targetRenderers == null || targetRenderers.Length == 0)
+            return;
 
         runtimeMats = new Material[targetRenderers.Length];
         baseColors = new Color[targetRenderers.Length];
@@ -377,7 +414,8 @@ public class VoltageKnobInput : MonoBehaviour
 
         for (int i = 0; i < targetRenderers.Length; i++)
         {
-            if (targetRenderers[i] == null) continue;
+            if (targetRenderers[i] == null)
+                continue;
 
             runtimeMats[i] = targetRenderers[i].material;
             isSpriteRenderer[i] = targetRenderers[i] is SpriteRenderer;
@@ -405,22 +443,28 @@ public class VoltageKnobInput : MonoBehaviour
 
     private void RefreshVisualState()
     {
-        if (grabbed) ApplyHighlight(grabbedColor, grabbedEmissionIntensity);
-        else RestoreBaseLook();
+        if (grabbed)
+            ApplyHighlight(grabbedColor, grabbedEmissionIntensity);
+        else
+            RestoreBaseLook();
     }
 
     private void ApplyHighlight(Color color, float emissionIntensity)
     {
-        if (runtimeMats == null) return;
+        if (runtimeMats == null)
+            return;
 
         for (int i = 0; i < runtimeMats.Length; i++)
         {
-            if (runtimeMats[i] == null || targetRenderers[i] == null) continue;
+            if (runtimeMats[i] == null || targetRenderers[i] == null)
+                continue;
 
             if (isSpriteRenderer[i])
             {
                 SpriteRenderer sr = targetRenderers[i] as SpriteRenderer;
-                if (sr != null) sr.color = color;
+
+                if (sr != null)
+                    sr.color = color;
             }
             else
             {
@@ -440,16 +484,20 @@ public class VoltageKnobInput : MonoBehaviour
 
     private void RestoreBaseLook()
     {
-        if (runtimeMats == null) return;
+        if (runtimeMats == null)
+            return;
 
         for (int i = 0; i < runtimeMats.Length; i++)
         {
-            if (runtimeMats[i] == null || targetRenderers[i] == null) continue;
+            if (runtimeMats[i] == null || targetRenderers[i] == null)
+                continue;
 
             if (isSpriteRenderer[i])
             {
                 SpriteRenderer sr = targetRenderers[i] as SpriteRenderer;
-                if (sr != null) sr.color = baseSpriteColors[i];
+
+                if (sr != null)
+                    sr.color = baseSpriteColors[i];
             }
             else
             {

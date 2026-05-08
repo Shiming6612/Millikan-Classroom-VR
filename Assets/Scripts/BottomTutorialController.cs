@@ -9,7 +9,27 @@ public class BottomTutorialController : MonoBehaviour
     public TMP_Text buttonHintText;
     public GameObject dialogueRoot;
 
-    [Header("Tutorial Arrows")]
+    [Header("Panels")]
+    public GameObject parameterPanelRoot;
+    public GameObject guideUIRoot;
+    public TMP_Text guideUIText;
+    public SimpleHistogramPanel histogramPanel;
+    public GameObject forceArrowsRoot;
+
+    [Header("References")]
+    public SpraySpawner spraySpawner;
+    public RadiusSliderController radiusSliderController;
+    public DropSelectionManager selectionManager;
+    public StoryMeasurementRecorder measurementRecorder;
+    public Behaviour voltageKnobInput;
+
+    [Header("Return / Post Quiz")]
+    public Transform playerRoot;
+    public Transform storyReturnPoint;
+    public GameObject postQuizRoot;
+    public UnityEvent onStartPostQuiz;
+
+    [Header("Arrows")]
     public GameObject arrowSetup;
     public GameObject arrowSprayer;
     public GameObject arrowSelectDrop;
@@ -17,50 +37,38 @@ public class BottomTutorialController : MonoBehaviour
     public GameObject arrowCapacitor;
     public GameObject arrowVoltageKnob;
 
-    [Header("Experiment References")]
-    public SpraySpawner spraySpawner;
-    public RadiusSliderController radiusSliderController;
-
-    [Header("Optional Visuals")]
-    public GameObject forceArrowsRoot;
-    public GameObject histogramRoot;
-    public GameObject notebookRoot;
-
-    [Header("Radius Checklist")]
+    [Header("Radius Task")]
     public float radiusTargetTolerance = 0.08f;
-    public TMP_Text radiusChecklistText;
 
     [Header("Measurement Task")]
     public int requiredFloatingDroplets = 5;
-    public TMP_Text floatingCounterText;
 
     [Header("Sounds")]
     public AudioSource taskCompleteSfxSource;
     public AudioClip taskCompleteSfx;
+    public AudioSource pageSfxSource;
+    public AudioClip bookPageSfx;
 
     [Header("Disable These During Tutorial")]
     public Behaviour[] componentsToDisableDuringTutorial;
 
-    [Header("Story Completed")]
-    public UnityEvent onStoryCompleted;
-
     public static bool TutorialInputLocked { get; private set; }
 
-    public bool IsSessionActive => tutorialSessionActive;
-    public int MeasurementsCompleted => measurementsCompleted;
+    private bool tutorialSessionActive;
+    private int currentStep;
 
-    private bool tutorialSessionActive = false;
-    private int currentStep = 0;
+    private int measurementsCompleted;
+    private bool firstMeasurementExplanationShown;
 
-    private int measurementsCompleted = 0;
+    private int radiusTaskIndex = -1;
+    private bool radiusTaskRadiusCorrect;
+    private bool radiusTaskSprayed;
+    private bool radiusTaskDropEnteredField;
+    private bool currentRadiusTaskDone;
 
-    private bool radius05Done = false;
-    private bool radius10Done = false;
-    private bool radius15Done = false;
+    private readonly float[] radiusTargets = { 0.5f, 1.0f, 1.5f };
 
-    private bool firstMeasurementExplanationShown = false;
-
-    private const int LastStepIndex = 29;
+    private const int LastStepIndex = 66;
 
     private void Start()
     {
@@ -73,8 +81,8 @@ public class BottomTutorialController : MonoBehaviour
         TutorialInputLocked = false;
 
         SetTutorialInputComponentsEnabled(true);
-        HideAllArrows();
-        HideOptionalVisuals();
+        SetVoltageInteraction(false);
+        HideAllTemporaryUI();
 
         if (dialogueRoot != null)
             dialogueRoot.SetActive(false);
@@ -85,8 +93,8 @@ public class BottomTutorialController : MonoBehaviour
         if (!tutorialSessionActive)
             return;
 
-        if (currentStep == 15)
-            UpdateRadiusChecklistFromSlider();
+        if (currentStep == 25 || currentStep == 26 || currentStep == 27)
+            UpdateRadiusTask();
 
         if (OVRInput.GetDown(OVRInput.Button.One))
             TryAdvanceWithAButton();
@@ -100,8 +108,7 @@ public class BottomTutorialController : MonoBehaviour
         TutorialInputLocked = true;
 
         SetTutorialInputComponentsEnabled(false);
-        HideAllArrows();
-        HideOptionalVisuals();
+        HideAllTemporaryUI();
 
         if (dialogueRoot != null)
             dialogueRoot.SetActive(true);
@@ -109,24 +116,20 @@ public class BottomTutorialController : MonoBehaviour
         ShowStep();
     }
 
-    public void EndTutorialSession()
+    private void EndTutorialSession()
     {
         tutorialSessionActive = false;
         TutorialInputLocked = false;
 
-        if (radiusSliderController != null)
-            radiusSliderController.EndRadiusTask();
-
-        if (spraySpawner != null)
-            spraySpawner.ReturnToRandomModeAndClearDrops();
-
         SetTutorialInputComponentsEnabled(true);
-        HideAllArrows();
+        SetVoltageInteraction(false);
+        HideAllTemporaryUI();
 
         if (dialogueRoot != null)
             dialogueRoot.SetActive(false);
 
-        onStoryCompleted?.Invoke();
+        ReturnToStoryStart();
+        StartPostQuiz();
 
         ResetTutorialProgress();
     }
@@ -134,29 +137,30 @@ public class BottomTutorialController : MonoBehaviour
     private void ResetTutorialProgress()
     {
         currentStep = 0;
-
         measurementsCompleted = 0;
         firstMeasurementExplanationShown = false;
 
-        radius05Done = false;
-        radius10Done = false;
-        radius15Done = false;
+        radiusTaskIndex = -1;
+        radiusTaskRadiusCorrect = false;
+        radiusTaskSprayed = false;
+        radiusTaskDropEnteredField = false;
+        currentRadiusTaskDone = false;
 
-        UpdateFloatingCounter();
-        UpdateRadiusChecklistText();
+        if (measurementRecorder != null)
+            measurementRecorder.ClearMeasurements();
     }
 
     private void TryAdvanceWithAButton()
     {
-        if (IsBlockingTaskStep(currentStep))
+        if (IsBlockingStep(currentStep))
         {
             RefreshCurrentText();
             return;
         }
 
-        if (currentStep == 15)
+        if (currentStep == 25 || currentStep == 26 || currentStep == 27)
         {
-            if (IsRadiusChecklistComplete())
+            if (currentRadiusTaskDone)
                 NextStep();
             else
                 RefreshCurrentText();
@@ -164,11 +168,11 @@ public class BottomTutorialController : MonoBehaviour
             return;
         }
 
-        if (currentStep == 24)
+        if (currentStep == 36)
         {
             if (measurementsCompleted < requiredFloatingDroplets)
             {
-                currentStep = 20;
+                currentStep = 33;
                 ShowStep();
             }
             else
@@ -182,7 +186,7 @@ public class BottomTutorialController : MonoBehaviour
         NextStep();
     }
 
-    public void NextStep()
+    private void NextStep()
     {
         if (currentStep < LastStepIndex)
         {
@@ -198,11 +202,7 @@ public class BottomTutorialController : MonoBehaviour
     private void ShowStep()
     {
         ApplyStepSideEffects(currentStep);
-
         RefreshCurrentText();
-
-        UpdateFloatingCounter();
-        UpdateRadiusChecklistText();
         UpdateArrowForStep(currentStep);
     }
 
@@ -215,55 +215,259 @@ public class BottomTutorialController : MonoBehaviour
             buttonHintText.text = GetButtonHintForCurrentStep();
     }
 
+    private bool IsBlockingStep(int step)
+    {
+        return step == 17 || step == 33 || step == 34 || step == 35;
+    }
+
     private void ApplyStepSideEffects(int step)
     {
+        SetVoltageInteraction(false);
+
         switch (step)
         {
             case 0:
-                HideOptionalVisuals();
+                HideAllTemporaryUI();
                 break;
 
-            case 15:
+            case 17:
+                HideParameterPanel();
+                HideGuideUI();
+                HideForceArrows();
+                HideHistogram();
+                if (spraySpawner != null)
+                    spraySpawner.ReturnToRandomModeAndClearDrops();
+                break;
+
+            case 22:
+                ShowGuideUI(
+                    "F_G = m · g\n" +
+                    "m = ρ_Öl · (4/3)πr³\n\n" +
+                    "ρ_Öl = 875 kg/m³\n" +
+                    "g = 9,81 m/s²\n\n" +
+                    "Nur r ist unbekannt."
+                );
+                break;
+
+            case 23:
+                ShowParameterPanel();
                 if (radiusSliderController != null)
                     radiusSliderController.StartRadiusTask();
-
                 if (spraySpawner != null)
                     spraySpawner.EnableTutorialRadiusMode();
                 break;
 
-            case 16:
-                if (radiusSliderController != null)
-                    radiusSliderController.EndRadiusTask();
-
-                if (spraySpawner != null)
-                    spraySpawner.ReturnToRandomModeAndClearDrops();
-                break;
-
-            case 17:
-                if (forceArrowsRoot != null)
-                    forceArrowsRoot.SetActive(true);
-                break;
-
-            case 20:
-                if (spraySpawner != null)
-                    spraySpawner.ReturnToRandomModeAndClearDrops();
-                break;
-
             case 25:
-                if (histogramRoot != null)
-                    histogramRoot.SetActive(true);
+                StartRadiusTask(0);
+                break;
+
+            case 26:
+                StartRadiusTask(1);
                 break;
 
             case 27:
-                if (notebookRoot != null)
-                    notebookRoot.SetActive(true);
+                StartRadiusTask(2);
+                break;
+
+            case 28:
+                if (radiusSliderController != null)
+                    radiusSliderController.EndRadiusTask();
+                if (spraySpawner != null)
+                    spraySpawner.ReturnToRandomModeAndClearDrops();
+                break;
+
+            case 29:
+                ShowParameterPanel();
+                HideGuideUI();
+                HideForceArrows();
+                HideHistogram();
+                break;
+
+            case 33:
+                StartNewMeasurement();
+                break;
+
+            case 35:
+                SetVoltageInteraction(true);
+                ShowForceArrows();
+                break;
+
+            case 37:
+                ShowGuideUI(
+                    "F_el = F_G\n\n" +
+                    "F_el = q · E\n" +
+                    "E = U / d\n\n" +
+                    "q · U / d = m · g\n" +
+                    "q = m · g · d / U\n\n" +
+                    "Grün: elektrische Kraft F_el\n" +
+                    "Blau: Gewichtskraft F_G"
+                );
+                ShowForceArrows();
+                break;
+
+            case 38:
+                ShowGuideUI(
+                    "q = Ladung des Tröpfchens [C]\n" +
+                    "U = Spannung am Kondensator [V]\n" +
+                    "d = Plattenabstand [m] = 6,00 mm\n" +
+                    "m = Masse des Tröpfchens [kg]\n" +
+                    "g = 9,81 m/s²\n" +
+                    "E = U / d"
+                );
+                break;
+
+            case 41:
+                HideForceArrows();
+                SetVoltageInteraction(false);
+                if (spraySpawner != null)
+                    spraySpawner.ResetAllDrops();
+                ShowHistogram();
+                break;
+
+            case 47:
+                PlayBookSound();
+                break;
+
+            case 58:
+                HideHistogram();
+                HideParameterPanel();
+                HideGuideUI();
+                HideForceArrows();
+                SetVoltageInteraction(false);
                 break;
         }
     }
 
-    private bool IsBlockingTaskStep(int step)
+    private void StartNewMeasurement()
     {
-        return step == 12 || step == 20 || step == 21 || step == 22;
+        SetVoltageInteraction(false);
+        ShowParameterPanel();
+        HideForceArrows();
+
+        if (spraySpawner != null)
+            spraySpawner.ReturnToRandomModeAndClearDrops();
+
+        if (selectionManager != null)
+            selectionManager.ClearSelection();
+
+        ResetVoltageToZero();
+    }
+
+    private void StartRadiusTask(int index)
+    {
+        radiusTaskIndex = index;
+        radiusTaskRadiusCorrect = false;
+        radiusTaskSprayed = false;
+        radiusTaskDropEnteredField = false;
+        currentRadiusTaskDone = false;
+
+        ShowParameterPanel();
+
+        if (radiusSliderController != null)
+            radiusSliderController.StartRadiusTask();
+
+        if (spraySpawner != null)
+            spraySpawner.EnableTutorialRadiusMode();
+    }
+
+    private void UpdateRadiusTask()
+    {
+        if (currentRadiusTaskDone || radiusSliderController == null)
+            return;
+
+        float target = radiusTargets[radiusTaskIndex];
+        float current = radiusSliderController.GetCurrentRadiusMicrometer();
+
+        radiusTaskRadiusCorrect = Mathf.Abs(current - target) <= radiusTargetTolerance;
+
+        if (radiusTaskRadiusCorrect && radiusTaskSprayed && radiusTaskDropEnteredField)
+        {
+            currentRadiusTaskDone = true;
+            PlayTaskCompleteSound();
+            RefreshCurrentText();
+        }
+    }
+
+    public void NotifyDropletTriggered()
+    {
+        if (!tutorialSessionActive)
+            return;
+
+        if (currentStep == 17)
+        {
+            PlayTaskCompleteSound();
+            NextStep();
+            return;
+        }
+
+        if (currentStep == 25 || currentStep == 26 || currentStep == 27)
+        {
+            radiusTaskSprayed = true;
+            RefreshCurrentText();
+            return;
+        }
+
+        if (currentStep == 33)
+        {
+            PlayTaskCompleteSound();
+            NextStep();
+        }
+    }
+
+    public void NotifyDropEnteredField()
+    {
+        if (!tutorialSessionActive)
+            return;
+
+        if (currentStep == 25 || currentStep == 26 || currentStep == 27)
+        {
+            radiusTaskDropEnteredField = true;
+            RefreshCurrentText();
+        }
+    }
+
+    public void NotifyDropSelected()
+    {
+        if (!tutorialSessionActive)
+            return;
+
+        if (currentStep == 34)
+        {
+            PlayTaskCompleteSound();
+            NextStep();
+        }
+    }
+
+    public void NotifyVoltageSolved()
+    {
+        if (!tutorialSessionActive || currentStep != 35)
+            return;
+
+        measurementsCompleted++;
+
+        if (measurementRecorder != null)
+            measurementRecorder.RecordSelectedDrop(selectionManager);
+
+        PlayTaskCompleteSound();
+        SetVoltageInteraction(false);
+
+        if (measurementsCompleted == 1 && !firstMeasurementExplanationShown)
+        {
+            firstMeasurementExplanationShown = true;
+            currentStep = 37;
+            ShowStep();
+            return;
+        }
+
+        if (measurementsCompleted < requiredFloatingDroplets)
+        {
+            currentStep = 33;
+            ShowStep();
+            return;
+        }
+
+        currentStep = 41;
+        ShowStep();
     }
 
     private string GetDialogueForCurrentStep()
@@ -274,172 +478,240 @@ public class BottomTutorialController : MonoBehaviour
                 return "Ah. Ein Klassenzimmer. Gut. Das kenne ich.\nBei uns sahen sie etwas anders aus — aber das Prinzip ist dasselbe.\nMein Name ist Robert Andrews Millikan.\nIch war Physikprofessor an der University of Chicago — und später am California Institute of Technology.";
 
             case 1:
-                return "Aber egal… Ich habe ein Problem.\nOder genauer gesagt: Ich habe eine Frage.\nIst elektrische Ladung unteilbar?\nGibt es ein kleinstes elektrisches Paket — eine Art Atom der Ladung?";
+                return "Aber egal…Ich habe ein Problem.\nOder genauer gesagt: Ich habe eine Frage — und ich brauche jemanden, der mir hilft, sie zu beantworten.\nIst elektrische Ladung unteilbar?";
 
             case 2:
-                return "Oder fließt Elektrizität einfach kontinuierlich, wie Wasser durch einen Schlauch?\nIch habe ein Experiment gebaut, das diese Frage beantworten kann.\nAber ich kann es nicht alleine durchführen.\nDazu brauche ich einen Assistenten — wie dich!";
+                return "Gibt es ein kleinstes elektrisches Paket — eine Art Atom der Ladung —\noder fließt Elektrizität einfach kontinuierlich, wie Wasser durch einen Schlauch?\nIch habe ein Experiment gebaut, das diese Frage beantworten kann.\nAber ich kann es nicht alleine durchführen.";
 
             case 3:
-                return "Du müsstest die Geräte bedienen, während ich erkläre, was gerade passiert.\nAußerdem musst du gut aufpassen.\nGenau wie mein Doktorand Harvey Fletcher damals.\nBist du bereit, diese Rolle zu übernehmen und mir zu helfen?";
+                return "Dazu brauche ich einen Assistenten - wie dich!\nDu müsstest die Geräte bedienen, während ich erkläre, was gerade passiert.\nAußerdem musst du gut aufpassen.\nGenau wie mein Doktorand Harvey Fletcher damals.\nBist du bereit diese Rolle zu übernehmen und mir zu helfen?";
 
             case 4:
-                return "Ausgezeichnet. Dann legen wir los.\nKomm zum Experiment.\nIch zeige dir, womit wir es zu tun haben.";
+                return "Ausgezeichnet. Dann legen wir los.\nKomm zum Experiment — ich zeige dir, womit wir es zu tun haben.";
 
             case 5:
                 return "Gut. Dann fangen wir von vorne an.\nIch bin 1868 in Morrison, Illinois geboren.\nPhysik hat mich schon immer fasziniert.\nDie Frage, woraus Materie wirklich besteht.";
 
             case 6:
-                return "1909 haben mein Doktorand Harvey Fletcher und ich begonnen, diesen Apparat hier zu entwickeln.\nFletcher hatte die entscheidende Idee: Statt Wasser — Öl.\nUnsere Tröpfchen bleiben stundenlang stabil.\nDas klingt banal. Aber es hat alles verändert.";
+                return "Was Elektrizität eigentlich ist.\nWas hinter den Gleichungen steckt….\n1909 haben mein Doktorand Harvey Fletcher und ich begonnen, diesen Apparat hier zu entwickeln.";
 
             case 7:
-                return "Was wir herausfinden wollten: Gibt es eine kleinste Einheit elektrischer Ladung?\nOder ist Elektrizität so etwas wie eine Flüssigkeit?\nJ.J. Thomson hatte 1897 gezeigt, dass es Elektronen gibt.\nAber wie groß ist ihre Ladung? Das wusste niemand genau.";
+                return "Fletcher hatte die entscheidende Idee: Statt Wasser — Öl.\nUnsere Tröpfchen bleiben stundenlang stabil.\nDas klingt banal.\nAber es hat alles verändert.";
 
             case 8:
-                return "Hier ist er. Mein Apparat.\nFünf Dinge arbeiten zusammen.\nUnd jedes einzelne ist entscheidend.\nIch erkläre dir jede einzelne Komponente nacheinander.";
+                return "Was wir herausfinden wollten:\nGibt es eine kleinste Einheit elektrischer Ladung — oder ist Elektrizität so etwas wie eine Flüssigkeit, die man beliebig klein aufteilen kann?\nJ.J. Thomson hatte 1897 gezeigt, dass es Elektronen gibt — kleine, negativ geladene Teilchen.";
 
             case 9:
-                return "Dieser einfache Zerstäuber — fast wie ein Parfümflakon — ist der Anfang von allem.\nEin kurzer Druck, und Millionen winziger Öltröpfchen werden in die Messkammer geblasen.\nDurch die Reibung beim Zerstäuben laden sich viele davon elektrisch auf.\nGenau das sind die entscheidenden Öltröpfchen für uns.";
+                return "Aber wie groß ist ihre Ladung?\nDas wusste niemand genau.\nIch wollte es wissen.\nUnd heute erfährst du, wie ich es gemessen habe.";
 
             case 10:
-                return "Diese Tröpfchen sind viel zu klein, um sie direkt zu sehen.\nDas Mikroskop macht sie sichtbar — als helle Lichtpunkte auf dunklem Hintergrund.\nAber Vorsicht: Das Mikroskop spiegelt das Bild.\nDeshalb sehen wir in der Simulation direkt, ob die Öltröpfchen sinken oder steigen.";
+                return "Hier ist er. Mein Apparat.\nFünf Dinge arbeiten zusammen — und jedes einzelne ist entscheidend.\nIch erkläre dir jede einzelne Komponente nacheinander.";
 
             case 11:
-                return "Das Licht kommt schräg von der Seite.\nOhne es würden wir gar nichts sehen.\nDie Tröpfchen streuen das Licht wie Staubkörner in einem Sonnenstrahl.\nPlötzlich leuchten sie auf.";
+                return "Dieser einfache Zerstäuber — fast wie ein Parfümflakon — ist der Anfang von allem.\nEin kurzer Druck, und Millionen winziger Öltröpfchen werden in die Messkammer geblasen.\nDurch die Reibung beim Zerstäuben laden sich viele davon elektrisch auf.\nGenau das sind die entscheidenden Öltröpfchen für uns.";
 
             case 12:
-                return "Aufgabe: Zerstäuber benutzen.\nDas Feld ist ausgeschaltet.\nRichte deine Hand auf den Zerstäuber.\nDrücke den rechten Trigger, um Öltröpfchen zu erzeugen.";
+                return "Diese Tröpfchen sind viel zu klein, um sie direkt zu sehen.\nDas Mikroskop macht sie sichtbar — als helle Lichtpunkte auf dunklem Hintergrund.\nAber Vorsicht: Das Mikroskop spiegelt das Bild.";
 
             case 13:
-                return "Wie du siehst, werden die ersten Tröpfchen in den Apparat gesprüht.\nDie Tröpfchen fallen.\nLangsam — aber sie fallen.\nDie Schwerkraft zieht sie nach unten.";
+                return "Was wir sehen, sinkt in Wirklichkeit — es sieht aus, als würde es steigen.\nDas verwirrt am Anfang.\nDeshalb haben wir hier in der Simulation die Öltröpfchen für das bloße Auge sichtbar gemacht und wir sehen direkt, ob die Öltröpfchen sinken oder steigen.";
 
             case 14:
-                return "Warum ist das wichtig?\nAus der Fallgeschwindigkeit eines Tröpfchens lässt sich der Radius r berechnen.\nWir brauchen den Radius, um später die Ladung zu bestimmen.\nSchnelleres Fallen bedeutet: größeres Tröpfchen.";
+                return "Das Licht kommt schräg von der Seite.\nOhne es würden wir gar nichts sehen.\nDie Tröpfchen streuen das Licht wie Staubkörner in einem Sonnenstrahl — plötzlich leuchten sie auf.";
 
             case 15:
-                if (IsRadiusChecklistComplete())
-                {
-                    return "Radius-Aufgabe abgeschlossen.\nDu hast 0,5 µm, 1,0 µm und 1,5 µm getestet.\nJetzt kannst du mit A fortfahren.";
-                }
-
-                return "Aufgabe: Radius einstellen.\nDer Regler reicht von 0,3 µm bis 2,0 µm.\nStelle nacheinander diese Größen ein:\n\n" + GetRadiusChecklistString();
+                return "Das Herzstück.\nZwei Metallplatten, exakt 6 Millimeter auseinander.\nWenn ich eine Spannung anlege, entsteht zwischen ihnen ein elektrisches Feld — gleichmäßig, kontrolliert.\nDieses Feld wird auf unsere Tröpfchen wirken. Wie stark, das liegt in unserer Hand.";
 
             case 16:
-                return "Gut. Du verstehst jetzt: Der Radius bestimmt, wie schnell ein Tröpfchen fällt.\nUnd aus der Fallgeschwindigkeit können wir den Radius berechnen.\nJetzt kommt der eigentliche Schritt.";
+                return "Dieser Regler ist unser wichtigstes Werkzeug.\nEr bestimmt, wie stark das elektrische Feld zwischen den Platten ist.\nDrehen wir ihn hoch — zieht das Feld geladene Tröpfchen nach oben.\nDrehen wir ihn auf null — fallen sie wieder frei.\nDie richtige Einstellung ist alles.";
 
             case 17:
-                return "Wir sehen einen Regler, um die Spannung im Feld einzustellen.\nDreh den Regler langsam nach oben.\nDie elektrische Kraft wird stärker.\nDas Tröpfchen verlangsamt sich.";
+                return "Aufgabe: Zerstäuber benutzen\n\nDas Feld ist ausgeschaltet.\nBitte geh mit deiner Hand zum Zerstäuber und drücke den rechten Trigger.";
 
             case 18:
-                return "Wenn die Spannung zu hoch wird, steigt das Tröpfchen.\nVersuch es so einzustellen, dass das Tröpfchen schwebt.\nDann hält das elektrische Feld es gegen die Schwerkraft.\nDie beiden Kräfte heben sich auf.";
+                return "Wie du siehst werden die ersten Tröpfchen in den Apparat gesprüht.\nDie Tröpfchen fallen.\nLangsam — aber sie fallen.\nDie Schwerkraft zieht sie nach unten.";
 
             case 19:
-                return "Beim Schweben gilt also:\nF_el = F_G.\nDie elektrische Kraft ist so groß wie die Schwerkraft.\nJetzt messen wir das an einem einzelnen Öltröpfchen.";
+                return "Das ist die erste Kraft, mit der wir es zu tun haben.\nWarum ist das wichtig?\nWeil sich aus der Fallgeschwindigkeit eines Tröpfchens der Radius r berechnen lässt.";
 
             case 20:
-                return "Aufgabe: Neue Öltröpfchen erzeugen.\nRichte auf den Zerstäuber.\nDrücke den rechten Trigger.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
+                return "Wir benötigen den Radius, um im nächsten Schritt die Ladung bestimmen zu können.\nAber das schauen wir uns später an.\nDie Dichte des Öls kenne ich — 875 Kilogramm pro Kubikmeter.\nDie Erdbeschleunigung kennst du.";
 
             case 21:
-                return "Aufgabe: Öltröpfchen auswählen.\nZiele mit dem roten Strahl auf ein Tröpfchen.\nDrücke den rechten Trigger.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
+                return "Was ich nicht kenne: den Radius des Tröpfchens.\nDen messe ich aus der Fallgeschwindigkeit.\nSchnelleres Fallen bedeutet: größeres Tröpfchen.\nEinfacher Zusammenhang — aber fundamental wichtig.";
 
             case 22:
-                return "Aufgabe: Tröpfchen zum Schweben bringen.\nGreife den Spannungsregler.\nStelle die Spannung so ein, dass das Tröpfchen möglichst ruhig bleibt.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
+                return "Schau auf die Formel neben dem Experiment.\nDort siehst du die bekannten Werte.";
 
             case 23:
-                return "Aus diesem Gleichgewicht folgt die gesuchte Spannung.\nF_el = F_G.\nq · U / d = m · g.\nDaraus folgt: q = m · g · d / U.";
+                return "Ein physischer Slider erscheint im VR-Raum.\nEr ist beschriftet: Tröpfchengröße r.\nLinks: 0,3 µm. Rechts: 2,0 µm.";
 
             case 24:
-                return "Das war deine erste Ladungsmessung.\nAber eine Messung ist noch keine Wissenschaft.\nWas ich brauche, ist ein Muster.\nBringe bitte weitere Tröpfchen nacheinander zum Schweben.";
+                return "Greifen Sie den Regler.\nSchieben Sie ihn nach rechts — das Tröpfchen wird größer.\nBeobachten Sie, wie es schneller fällt.\nNach links — kleiner, langsamer.\n\nDas ist das Stokes'sche Gesetz:\nDie Reibungskraft der Luft hängt vom Radius ab.";
 
             case 25:
-                return "Ich habe nicht ein Tröpfchen gemessen.\nIch habe hunderte gemessen. Über Monate.\nDie Ladungen waren nie zufällig verteilt.\nSie häuften sich immer an denselben Stellen.";
+                return GetRadiusTaskText("0,5", "sehr langsam fallend");
 
             case 26:
-                return "Elektrische Ladung ist nicht kontinuierlich.\nSie kommt in Paketen.\nDas kleinste Paket ist die Elementarladung e.\nJedes Tröpfchen trägt ein, zwei, drei oder mehr dieser Pakete.";
+                return GetRadiusTaskText("1,0", "mittlere Geschwindigkeit");
 
             case 27:
-                return "Ich muss dir etwas zeigen.\n1978 entdeckte Gerald Holton meine Original-Notizbücher.\nDarin standen mehr Messungen, als ich veröffentlicht hatte.\nNeben manchen Datenpunkten standen Notizen wie: 'Won't work' oder 'Error — discard'.";
+                return GetRadiusTaskText("1,5", "schnell fallend");
 
             case 28:
-                return "War das falsch? Ich glaube: Nein.\nIch habe Messungen ausgeschlossen, bei denen ich technische Fehler erkannt habe.\nAber es gibt eine klare Anforderung: Transparenz.\nWas ich ausschließe — und warum — das muss dokumentiert sein.";
+                return "Gut. Sie verstehen jetzt: Der Radius bestimmt, wie schnell ein Tröpfchen fällt.\nUnd aus der Fallgeschwindigkeit können wir den Radius berechnen.\nJetzt kommt der eigentliche Schritt.";
 
             case 29:
-                return "Es war 1913.\nIch publizierte meinen Endwert: e = 1,592 mal zehn hoch minus neunzehn Coulomb.\nDer heute akzeptierte Wert ist 1,602 mal zehn hoch minus neunzehn Coulomb.\nAber der eigentliche Beitrag ist nicht die Zahl. Es ist das Prinzip: elektrische Ladung ist gequantelt.";
+                return "Wir sehen einen Regler, um die Spannung im Feld einzustellen.\nDreh den Regler mal hoch und achte auf das ausgewählte Tröpfchen.\nDas Tröpfchen verändert seine Geschwindigkeit.";
+
+            case 30:
+                return "Die elektrische Kraft — die Coulomb-Kraft — wirkt.\nJe mehr Spannung, desto stärker.";
+
+            case 31:
+                return "Dreh den Spannungsregler vor dir langsam nach oben.\nSchau mal, der grüne Pfeil wächst.\nDie elektrische Kraft wird stärker.";
+
+            case 32:
+                return "Das Tröpfchen verlangsamt sich.\nWenn die Spannung zu hoch wird, dann steigt das Tröpfchen auf einmal.";
+
+            case 33:
+                return "Aufgabe: Neues Öltröpfchen erzeugen\n\nRichte deine Hand auf den Zerstäuber.\nDrücke den rechten Trigger.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
+
+            case 34:
+                return "Aufgabe: Öltröpfchen auswählen\n\nZiele mit dem roten Strahl auf ein Tröpfchen.\nDrücke den rechten Trigger.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
+
+            case 35:
+                return "Aufgabe: Tröpfchen zum Schweben bringen\n\nVersuch es mal so einzustellen, dass du es zum Schweben bringst.\nSo, dass das Tröpfchen hängt, als würde die Zeit stillstehen.\nDas elektrische Feld hält es exakt gegen die Schwerkraft.\nDie beiden Kräfte heben sich exakt auf.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
+
+            case 36:
+                return "Das war deine erste Ladungsmessung.\nAber eine Messung ist noch keine Wissenschaft — das ist nur ein Datenpunkt.\nWas ich brauche, ist ein Muster.\nAlso bring bitte noch 4 weitere Tröpfchen, die du per Klick auswählst, nacheinander zum Schweben.";
+
+            case 37:
+                return "Schau auf das Formel-Panel.\nDort siehst du das Kräftegleichgewicht und die Bedeutung der Kraftpfeile.";
+
+            case 38:
+                return "Und aus diesem Gleichgewicht folgt alles.\nWenn das Tröpfchen schwebt, weiß ich: Die elektrische Kraft ist gleich der Schwerkraft.\nIch kenne die Masse — aus dem Radius, den wir gerade gemessen haben.\nIch kenne den Plattenabstand: 6,00 Millimeter.\nUnd die Spannung lese ich ab. Damit berechne ich die Ladung q.";
+
+            case 39:
+                return "Auf dem Panel siehst du jetzt die Größen, die wir für die Berechnung brauchen.";
+
+            case 40:
+                return "Was ich brauche, ist ein Muster.\nAlso bring bitte noch 4 weitere Tröpfchen, die du per Klick auswählst, nacheinander zum Schweben.\nDu siehst dann wie die Aufgabenleiste sich füllt.";
+
+            case 41:
+                return "Alle fünf Messungen sind abgeschlossen.\nSchau dir nun das Histogramm an.\nDie gemessenen Ladungen werden dort eingetragen.";
+
+            case 42:
+                return "Ich habe nicht ein Tröpfchen gemessen.\nIch habe hunderte gemessen. Über Monate.\nUnd dabei etwas Erstaunliches beobachtet:\nDie Ladungen, die ich gemessen habe, waren nie zufällig verteilt.";
+
+            case 43:
+                return "Sie häuften sich immer an denselben Stellen.\nImmer ein Vielfaches derselben Grundeinheit.\nEinfach. Doppelt. Dreifach. Viermal. Nie dazwischen.\nDie Natur schien zu zählen — in ganzen Zahlen.";
+
+            case 44:
+                return "Elektrische Ladung ist nicht kontinuierlich.\nSie kommt in Paketen.\nDas kleinste Paket — das ist die Elementarladung e.\nJedes Tröpfchen trägt genau ein, zwei, drei oder mehr dieser Pakete.\nNie einen Bruchteil. Das nenne ich Ladungsquantisierung.";
+
+            case 45:
+                return "Du hast zuvor den Schwebeversuch bereits 5x durchgeführt\nund siehst deine Messwerte in dem Histogramm.\nSiehst du es?\nDie Ladungen häufen sich.\nNicht zufällig — bei bestimmten Werten.\nBei ganzzahligen Vielfachen.";
+
+            case 46:
+                return "Das Muster wird sichtbar.\nDas ist Wissenschaft.\nNicht eine Messung — sondern ein Muster aus vielen Messungen.\nUnd das Muster ist eindeutig:\nElektrische Ladung ist gequantelt.\nEs gibt eine kleinste Einheit.";
+
+            case 47:
+                return "Ich muss dir etwas zeigen.\nEtwas, das 1978 ein Historiker namens Gerald Holton entdeckt hat —\nin meinen Original-Notizbüchern aus den Jahren 1911 und 1912.";
+
+            case 48:
+                return "Er fand heraus, dass ich weit mehr Tröpfchen gemessen hatte\nals ich je veröffentlicht habe.";
+
+            case 49:
+                return "Millikan Notebook · 1911\n\n#47 — q = 1.613 ×10⁻¹⁹ C ✓\n#48 — q = 1.21 ×10⁻¹⁹ C Won't work\n#49 — q = 3.204 ×10⁻¹⁹ C (×2) ✓\n#50 — q = 0.94 ×10⁻¹⁹ C Schiefe Messung";
+
+            case 50:
+                return "Millikan Notebook · 1911\n\n#51 — q = 4.836 ×10⁻¹⁹ C (×3) ✓\n#52 — Tropfen verloren Error — discard\n#53 — q = 1.598 ×10⁻¹⁹ C ✓";
+
+            case 51:
+                return "Neben manchen Datenpunkten standen meine handschriftlichen Anmerkungen:\n'Won't work'.\n'Schiefe Messung'.\n'Error — discard'.";
+
+            case 52:
+                return "War das falsch?\nIch glaube: Nein.\nIch habe Messungen ausgeschlossen, bei denen ich technische Fehler erkannt habe —\nLuftzug, Erschütterungen, einen zitternden Tropfen.";
+
+            case 53:
+                return "Das ist kein Betrug.\nDas ist Urteilsvermögen.";
+
+            case 54:
+                return "Aber der Historiker Allan Franklin hat 1981 gezeigt:\nDie Daten, die ich wegließ, hätten meinen Endwert kaum verändert.\nNur die statistische Unsicherheit wäre größer geworden —\nvon 0,2% auf fast 2%.";
+
+            case 55:
+                return "Die Selektion hat meine Präzision verbessert,\naber nicht mein Ergebnis.";
+
+            case 56:
+                return "Die Frage, wann Datenselektion legitim ist,\nbeschäftigt Wissenschaftler bis heute.\nEs gibt keine einfache Antwort.\nAber es gibt eine klare Anforderung:\nTransparenz.";
+
+            case 57:
+                return "Was ich ausschließe — und warum —\ndas muss dokumentiert sein.";
+
+            case 58:
+                return "Es war 1913.\nIch publizierte meinen Endwert:\ne = 1,592 mal zehn hoch minus neunzehn Coulomb.\nUnsicherheit: 0,2 Prozent.";
+
+            case 59:
+                return "Es ist die genaueste Messung der Elementarladung,\ndie es bis dahin gibt.\nDer heute akzeptierte Wert ist 1,602.";
+
+            case 60:
+                return "Die Abweichung kommt aus einem leicht falschen Literaturwert\nfür die Luftviskosität,\nden ich damals verwendet habe.\nNicht aus meiner Methode.";
+
+            case 61:
+                return "Aber der eigentliche Beitrag ist nicht die Zahl.\nEs ist das Prinzip.\nElektrische Ladung ist gequantelt.";
+
+            case 62:
+                return "Es gibt keine halbe Elementarladung.\nKeine viertel Elementarladung.\nDie Natur zählt in ganzen Zahlen.";
+
+            case 63:
+                return "Das ist fundamental.\nDas ist eine der tiefsten Strukturen der Materie.";
+
+            case 64:
+                return "Seit 1995 haben automatisierte Experimente\nüber hundert Millionen Öltropfen vermessen.\nKein Hinweis auf Bruchladungen.\nKein einziger.";
+
+            case 65:
+                return "Du hast es mit deinen Messungen hier auch nochmal in der Neuzeit bewiesen,\ndurch die schwebenden Tröpfchen,\ndass meine Theorie stimmt.";
+
+            case 66:
+                return "Ich danke dir dafür.\nDu hast heute sehr viel gelernt,\nlass uns jetzt mal schauen wie viel du davon behalten hast.\nGern, darfst du jederzeit wieder vorbei kommen und mit mir experimentieren.\nIch freu mich drauf!";
 
             default:
                 return "";
         }
     }
 
+    private string GetRadiusTaskText(string target, string label)
+    {
+        if (currentRadiusTaskDone)
+        {
+            return "Aufgabe abgeschlossen:\n\n" +
+                   "<b><color=#00AA00>r = " + target + " µm → " + label + "</color></b>\n\n" +
+                   "Drücke A, um fortzufahren.";
+        }
+
+        return "Aufgabe:\n\n" +
+               "r = " + target + " µm → " + label + "\n\n" +
+               "Stelle den Radius mit dem rechten Controller ein.\n" +
+               "Drücke danach den rechten Trigger am Zerstäuber.\n" +
+               "Der Tropfen muss in den Plattenkondensator gelangen.\n" +
+               "Du kannst mehrmals sprühen und die Tropfen beobachten.";
+    }
+
     private string GetButtonHintForCurrentStep()
     {
-        if (IsBlockingTaskStep(currentStep))
+        if (currentStep == 3)
+            return "A: Ja, ich helfe dir!";
+
+        if (currentStep == 4)
+            return "A: Erst mehr erfahren — wer bist du?";
+
+        if (IsBlockingStep(currentStep))
             return "";
 
-        if (currentStep == 15 && !IsRadiusChecklistComplete())
+        if ((currentStep == 25 || currentStep == 26 || currentStep == 27) && !currentRadiusTaskDone)
             return "";
 
         return "A: Weiter";
-    }
-
-    private void UpdateRadiusChecklistFromSlider()
-    {
-        if (radiusSliderController == null)
-            return;
-
-        float radius = radiusSliderController.GetCurrentRadiusMicrometer();
-
-        bool changed = false;
-
-        if (!radius05Done && Mathf.Abs(radius - 0.5f) <= radiusTargetTolerance)
-        {
-            radius05Done = true;
-            changed = true;
-        }
-
-        if (!radius10Done && Mathf.Abs(radius - 1.0f) <= radiusTargetTolerance)
-        {
-            radius10Done = true;
-            changed = true;
-        }
-
-        if (!radius15Done && Mathf.Abs(radius - 1.5f) <= radiusTargetTolerance)
-        {
-            radius15Done = true;
-            changed = true;
-        }
-
-        if (changed)
-        {
-            PlayTaskCompleteSound();
-            UpdateRadiusChecklistText();
-            RefreshCurrentText();
-        }
-    }
-
-    private bool IsRadiusChecklistComplete()
-    {
-        return radius05Done && radius10Done && radius15Done;
-    }
-
-    private string GetRadiusChecklistString()
-    {
-        string a = radius05Done ? "✓ r = 0,5 µm" : "□ r = 0,5 µm";
-        string b = radius10Done ? "✓ r = 1,0 µm" : "□ r = 1,0 µm";
-        string c = radius15Done ? "✓ r = 1,5 µm" : "□ r = 1,5 µm";
-
-        return a + "\n" + b + "\n" + c;
-    }
-
-    private void UpdateRadiusChecklistText()
-    {
-        if (radiusChecklistText != null)
-            radiusChecklistText.text = GetRadiusChecklistString();
-    }
-
-    private void UpdateFloatingCounter()
-    {
-        if (floatingCounterText != null)
-            floatingCounterText.text = measurementsCompleted + "/" + requiredFloatingDroplets;
     }
 
     private void UpdateArrowForStep(int step)
@@ -448,35 +720,98 @@ public class BottomTutorialController : MonoBehaviour
 
         switch (step)
         {
-            case 8:
+            case 10:
                 if (arrowSetup != null) arrowSetup.SetActive(true);
                 break;
 
-            case 9:
-            case 12:
-            case 20:
+            case 11:
+            case 17:
+            case 33:
                 if (arrowSprayer != null) arrowSprayer.SetActive(true);
                 break;
 
-            case 11:
+            case 14:
                 if (arrowLight != null) arrowLight.SetActive(true);
                 break;
 
-            case 17:
-            case 18:
-            case 19:
-            case 23:
+            case 15:
+            case 29:
+            case 30:
+            case 31:
+            case 32:
+            case 37:
+            case 38:
                 if (arrowCapacitor != null) arrowCapacitor.SetActive(true);
                 break;
 
-            case 22:
-                if (arrowVoltageKnob != null) arrowVoltageKnob.SetActive(true);
-                break;
-
-            case 21:
+            case 34:
                 if (arrowSelectDrop != null) arrowSelectDrop.SetActive(true);
                 break;
+
+            case 35:
+                if (arrowVoltageKnob != null) arrowVoltageKnob.SetActive(true);
+                break;
         }
+    }
+
+    private void HideAllTemporaryUI()
+    {
+        HideParameterPanel();
+        HideGuideUI();
+        HideHistogram();
+        HideForceArrows();
+        HideAllArrows();
+    }
+
+    private void ShowParameterPanel()
+    {
+        if (parameterPanelRoot != null)
+            parameterPanelRoot.SetActive(true);
+    }
+
+    private void HideParameterPanel()
+    {
+        if (parameterPanelRoot != null)
+            parameterPanelRoot.SetActive(false);
+    }
+
+    private void ShowGuideUI(string text)
+    {
+        if (guideUIRoot != null)
+            guideUIRoot.SetActive(true);
+
+        if (guideUIText != null)
+            guideUIText.text = text;
+    }
+
+    private void HideGuideUI()
+    {
+        if (guideUIRoot != null)
+            guideUIRoot.SetActive(false);
+    }
+
+    private void ShowHistogram()
+    {
+        if (histogramPanel != null)
+            histogramPanel.Show();
+    }
+
+    private void HideHistogram()
+    {
+        if (histogramPanel != null)
+            histogramPanel.Hide();
+    }
+
+    private void ShowForceArrows()
+    {
+        if (forceArrowsRoot != null)
+            forceArrowsRoot.SetActive(true);
+    }
+
+    private void HideForceArrows()
+    {
+        if (forceArrowsRoot != null)
+            forceArrowsRoot.SetActive(false);
     }
 
     private void HideAllArrows()
@@ -489,74 +824,41 @@ public class BottomTutorialController : MonoBehaviour
         if (arrowVoltageKnob != null) arrowVoltageKnob.SetActive(false);
     }
 
-    private void HideOptionalVisuals()
+    private void SetVoltageInteraction(bool enabled)
     {
-        if (forceArrowsRoot != null)
-            forceArrowsRoot.SetActive(false);
-
-        if (histogramRoot != null)
-            histogramRoot.SetActive(false);
-
-        if (notebookRoot != null)
-            notebookRoot.SetActive(false);
+        if (voltageKnobInput != null)
+            voltageKnobInput.enabled = enabled;
     }
 
-    public void NotifyDropletTriggered()
+    private void ResetVoltageToZero()
     {
-        if (!tutorialSessionActive)
-            return;
+        VoltageKnobInput v = voltageKnobInput as VoltageKnobInput;
 
-        if (currentStep == 12 || currentStep == 20)
-        {
-            PlayTaskCompleteSound();
-            NextStep();
-        }
+        if (v != null)
+            v.ResetVoltageToZero();
     }
 
-    public void NotifyDropSelected()
+    private void ReturnToStoryStart()
     {
-        if (!tutorialSessionActive)
-            return;
-
-        if (currentStep == 21)
+        if (playerRoot != null && storyReturnPoint != null)
         {
-            PlayTaskCompleteSound();
-            NextStep();
+            playerRoot.position = storyReturnPoint.position;
+            playerRoot.rotation = storyReturnPoint.rotation;
         }
     }
 
-    public void NotifyVoltageSolved()
+    private void StartPostQuiz()
     {
-        if (!tutorialSessionActive)
-            return;
+        if (postQuizRoot != null)
+            postQuizRoot.SetActive(true);
 
-        if (currentStep != 22)
-            return;
+        onStartPostQuiz?.Invoke();
+    }
 
-        measurementsCompleted++;
-        UpdateFloatingCounter();
-        PlayTaskCompleteSound();
-
-        if (measurementsCompleted == 1 && !firstMeasurementExplanationShown)
-        {
-            firstMeasurementExplanationShown = true;
-            currentStep = 23;
-            ShowStep();
-            return;
-        }
-
-        if (measurementsCompleted < requiredFloatingDroplets)
-        {
-            if (spraySpawner != null)
-                spraySpawner.ResetAllDrops();
-
-            currentStep = 20;
-            ShowStep();
-            return;
-        }
-
-        currentStep = 25;
-        ShowStep();
+    private void PlayBookSound()
+    {
+        if (pageSfxSource != null && bookPageSfx != null)
+            pageSfxSource.PlayOneShot(bookPageSfx);
     }
 
     private void PlayTaskCompleteSound()

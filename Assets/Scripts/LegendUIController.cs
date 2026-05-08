@@ -25,11 +25,14 @@ public class LegendUIController : MonoBehaviour
     public AudioSource correctSfxSource;
     public AudioClip correctSfx;
 
-    [Header("Tutorial Completion")]
+    [Header("Tutorial")]
     public float tutorialHoldCorrectSeconds = 1f;
 
     [Header("Debug")]
-    public bool logDebug;
+    public bool logDebug = false;
+
+    private SelectableDrop lastSelected;
+    private BottomTutorialController tutorialController;
 
     private bool wasCorrect;
     private bool tutorialSolvedSent;
@@ -40,11 +43,8 @@ public class LegendUIController : MonoBehaviour
     private FontStyles baseStyle;
     private bool cached;
 
-    private SelectableDrop lastSelected;
     private readonly Dictionary<SelectableDrop, int> runtimeIds = new Dictionary<SelectableDrop, int>();
     private int nextRuntimeId = 1;
-
-    private BottomTutorialController tutorialController;
 
     private void Awake()
     {
@@ -68,33 +68,34 @@ public class LegendUIController : MonoBehaviour
 
     private void Update()
     {
-        SelectableDrop selectedDrop = selectionManager != null ? selectionManager.CurrentSelected : null;
+        SelectableDrop selected = selectionManager != null ? selectionManager.CurrentSelected : null;
 
-        if (selectedDrop != lastSelected)
+        if (selected != lastSelected)
         {
-            lastSelected = selectedDrop;
+            lastSelected = selected;
             RefreshAll();
         }
 
-        RefreshVoltage(selectedDrop);
+        RefreshVoltage(selected);
     }
 
-    private void HandleSelectionChanged(SelectableDrop selectedDrop)
+    private void HandleSelectionChanged(SelectableDrop selected)
     {
-        lastSelected = selectedDrop;
+        lastSelected = selected;
         RefreshAll();
     }
 
     private void RefreshAll()
     {
-        SelectableDrop selectedDrop = selectionManager != null ? selectionManager.CurrentSelected : null;
+        SelectableDrop selected = selectionManager != null ? selectionManager.CurrentSelected : null;
 
         SetPanel(true);
 
-        tutorialSolvedSent = false;
         correctHoldTimer = 0f;
+        tutorialSolvedSent = false;
+        wasCorrect = false;
 
-        if (selectedDrop == null)
+        if (selected == null)
         {
             if (titleText != null) titleText.text = "Drop--";
             if (massText != null) massText.text = "Mass: --";
@@ -102,30 +103,26 @@ public class LegendUIController : MonoBehaviour
             if (radiusText != null) radiusText.text = "Radius: --";
             if (hintText != null) hintText.text = "";
 
-            wasCorrect = false;
             RestoreStyle();
             RefreshVoltage(null);
             return;
         }
 
+        DropProperties dp = FindDropProperties(selected);
+
         if (titleText != null)
-        {
-            int displayId = GetDisplayId(selectedDrop);
-            titleText.text = displayId > 0 ? "Drop" + displayId.ToString("00") : "Drop--";
-        }
+            titleText.text = "Drop" + GetDisplayId(selected).ToString("00");
 
-        DropProperties dropProperties = FindDropProperties(selectedDrop);
-
-        if (dropProperties != null)
+        if (dp != null)
         {
             if (massText != null)
-                massText.text = "Mass: " + (dropProperties.MassKg * 1e15f).ToString("0.000") + " pg";
+                massText.text = "Mass: " + (dp.MassKg * 1e15f).ToString("0.000") + " pg";
 
             if (chargeText != null)
-                chargeText.text = "Charge: " + dropProperties.ChargeMultiple + " e";
+                chargeText.text = "Charge: " + dp.ChargeMultiple + " e";
 
             if (radiusText != null)
-                radiusText.text = "Radius: " + dropProperties.RadiusMicrometer.ToString("0.00") + " µm";
+                radiusText.text = "Radius: " + dp.RadiusMicrometer.ToString("0.00") + " µm";
         }
         else
         {
@@ -134,12 +131,11 @@ public class LegendUIController : MonoBehaviour
             if (radiusText != null) radiusText.text = "Radius: --";
         }
 
-        wasCorrect = false;
         RestoreStyle();
-        RefreshVoltage(selectedDrop);
+        RefreshVoltage(selected);
     }
 
-    private void RefreshVoltage(SelectableDrop selectedDrop)
+    private void RefreshVoltage(SelectableDrop selected)
     {
         CacheBaseStyle();
 
@@ -148,24 +144,23 @@ public class LegendUIController : MonoBehaviour
         if (fieldVolume != null && fieldVolume.invertVoltage)
             currentVoltage = -currentVoltage;
 
-        float roundedCurrentVoltage = RoundToOneDecimal(Mathf.Abs(currentVoltage));
+        float currentRounded = RoundToOneDecimal(Mathf.Abs(currentVoltage));
 
         float hoverVoltage = 0f;
-        bool canCalculateHoverVoltage = selectedDrop != null && TryHoverVoltage(selectedDrop, out hoverVoltage);
-
-        float roundedHoverVoltage = RoundToOneDecimal(hoverVoltage);
+        bool canCalculate = selected != null && TryHoverVoltage(selected, out hoverVoltage);
+        float hoverRounded = RoundToOneDecimal(hoverVoltage);
 
         if (voltageText != null)
         {
             voltageText.text = voltageSource != null
-                ? "Voltage: " + roundedCurrentVoltage.ToString("0.0") + " V"
+                ? "Voltage: " + currentRounded.ToString("0.0") + " V"
                 : "Voltage: --";
         }
 
         bool correct =
-            canCalculateHoverVoltage &&
+            canCalculate &&
             voltageSource != null &&
-            Mathf.Abs(roundedCurrentVoltage - roundedHoverVoltage) <= toleranceV;
+            Mathf.Abs(currentRounded - hoverRounded) <= toleranceV;
 
         if (correct)
             ApplyCorrectStyle();
@@ -178,15 +173,7 @@ public class LegendUIController : MonoBehaviour
                 correctSfxSource.PlayOneShot(correctSfx);
 
             if (logDebug)
-            {
-                Debug.Log(
-                    "[LegendUI] Correct voltage. Current=" +
-                    roundedCurrentVoltage.ToString("0.0") +
-                    " V, Hover=" +
-                    roundedHoverVoltage.ToString("0.0") +
-                    " V"
-                );
-            }
+                Debug.Log("[LegendUI] Correct: " + currentRounded + " V / Hover: " + hoverRounded + " V");
         }
 
         if (correct)
@@ -214,85 +201,75 @@ public class LegendUIController : MonoBehaviour
 
         if (hintText != null)
         {
-            if (!canCalculateHoverVoltage || voltageSource == null)
-            {
+            if (!canCalculate || voltageSource == null)
                 hintText.text = "";
-            }
-            else if (roundedCurrentVoltage > roundedHoverVoltage + toleranceV)
-            {
+            else if (currentRounded > hoverRounded + toleranceV)
                 hintText.text = "Status: Steigt";
-            }
-            else if (roundedCurrentVoltage < roundedHoverVoltage - toleranceV)
-            {
+            else if (currentRounded < hoverRounded - toleranceV)
                 hintText.text = "Status: Fällt";
-            }
             else
-            {
                 hintText.text = "Status: Schwebt";
-            }
         }
     }
 
-    private bool TryHoverVoltage(SelectableDrop selectedDrop, out float hoverVoltage)
+    private bool TryHoverVoltage(SelectableDrop selected, out float hoverVoltage)
     {
         hoverVoltage = 0f;
 
         if (fieldVolume == null)
             return false;
 
-        DropProperties dropProperties = FindDropProperties(selectedDrop);
+        DropProperties dp = FindDropProperties(selected);
 
-        if (dropProperties == null)
+        if (dp == null)
             return false;
 
-        float mass = Mathf.Max(1e-18f, dropProperties.MassKg);
-        float charge = Mathf.Abs(dropProperties.ChargeC);
+        float mass = Mathf.Max(1e-18f, dp.MassKg);
+        float charge = Mathf.Abs(dp.ChargeC);
 
         if (charge < 1e-20f)
             return false;
 
-        float plateSpacing = fieldVolume.GetPlateSpacingMeters();
+        float d = fieldVolume.GetPlateSpacingMeters();
 
-        if (plateSpacing <= 1e-6f)
+        if (d <= 1e-6f)
             return false;
 
-        Vector3 fieldDirection =
-            fieldVolume.fieldDirection.sqrMagnitude > 1e-6f
-                ? fieldVolume.fieldDirection.normalized
-                : Vector3.up;
+        Vector3 dir = fieldVolume.fieldDirection.sqrMagnitude > 1e-6f
+            ? fieldVolume.fieldDirection.normalized
+            : Vector3.up;
 
-        Vector3 gravity = GetGravityVector(selectedDrop);
+        Vector3 gravity = GetGravityVector(selected);
+        float g = Mathf.Abs(Vector3.Dot(gravity, dir));
 
-        float gravityAlongField = Mathf.Abs(Vector3.Dot(gravity, fieldDirection));
-
-        if (gravityAlongField <= 1e-6f)
+        if (g <= 1e-6f)
             return false;
 
-        float fieldScale = Mathf.Max(1e-6f, fieldVolume.fieldScale);
+        float scale = Mathf.Max(1e-6f, fieldVolume.fieldScale);
 
         // PDF formula:
         // F_el = F_G
         // q * U / d = m * g
         // U = m * g * d / q
-        hoverVoltage = (mass * gravityAlongField * plateSpacing) / (charge * fieldScale);
+        hoverVoltage = (mass * g * d) / (charge * scale);
 
         return hoverVoltage > 0f;
     }
 
-    private Vector3 GetGravityVector(SelectableDrop selectedDrop)
+    private Vector3 GetGravityVector(SelectableDrop selected)
     {
         Vector3 gravity = Physics.gravity;
 
-        if (selectedDrop == null)
+        if (selected == null)
             return gravity;
 
-        Rigidbody rb = selectedDrop.GetComponent<Rigidbody>();
+        Rigidbody rb = selected.GetComponent<Rigidbody>();
 
         if (rb == null)
-            rb = selectedDrop.GetComponentInParent<Rigidbody>();
+            rb = selected.GetComponentInParent<Rigidbody>();
 
         if (rb == null)
-            rb = selectedDrop.GetComponentInChildren<Rigidbody>();
+            rb = selected.GetComponentInChildren<Rigidbody>();
 
         if (rb != null)
         {
@@ -305,35 +282,35 @@ public class LegendUIController : MonoBehaviour
         return gravity;
     }
 
-    private DropProperties FindDropProperties(SelectableDrop selectedDrop)
+    private DropProperties FindDropProperties(SelectableDrop selected)
     {
-        if (selectedDrop == null)
+        if (selected == null)
             return null;
 
-        DropProperties dropProperties = selectedDrop.GetComponent<DropProperties>();
+        DropProperties dp = selected.GetComponent<DropProperties>();
 
-        if (dropProperties == null)
-            dropProperties = selectedDrop.GetComponentInParent<DropProperties>();
+        if (dp == null)
+            dp = selected.GetComponentInParent<DropProperties>();
 
-        if (dropProperties == null)
-            dropProperties = selectedDrop.GetComponentInChildren<DropProperties>();
+        if (dp == null)
+            dp = selected.GetComponentInChildren<DropProperties>();
 
-        return dropProperties;
+        return dp;
     }
 
-    private int GetDisplayId(SelectableDrop selectedDrop)
+    private int GetDisplayId(SelectableDrop selected)
     {
-        if (selectedDrop == null)
+        if (selected == null)
             return -1;
 
-        if (selectedDrop.dropId >= 0)
-            return selectedDrop.dropId + 1;
+        if (selected.dropId >= 0)
+            return selected.dropId + 1;
 
-        if (runtimeIds.TryGetValue(selectedDrop, out int id))
+        if (runtimeIds.TryGetValue(selected, out int id))
             return id;
 
         id = nextRuntimeId++;
-        runtimeIds[selectedDrop] = id;
+        runtimeIds[selected] = id;
 
         return id;
     }
