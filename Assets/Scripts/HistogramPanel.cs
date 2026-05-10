@@ -2,55 +2,28 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-public class SimpleHistogramPanel : MonoBehaviour
+public class HistogramPanel : MonoBehaviour
 {
-    public GameObject panelRoot;
-    public TMP_Text histogramText;
+    public TMP_Text optionalText;
 
     private const float ElementaryCharge = 1.602176634e-19f;
-
     private readonly List<float> qOverEValues = new List<float>();
-
-    private void Awake()
-    {
-        if (panelRoot == null)
-            panelRoot = gameObject;
-
-        Hide();
-    }
 
     public void Clear()
     {
         qOverEValues.Clear();
-        UpdateText();
+        RefreshOptionalText();
     }
 
     public void AddMeasurement(float chargeCoulomb)
     {
-        float qOverE = chargeCoulomb / ElementaryCharge;
+        float qOverE = Mathf.Abs(chargeCoulomb) / ElementaryCharge;
         qOverEValues.Add(qOverE);
-        UpdateText();
+        RefreshOptionalText();
     }
 
-    public void Show()
+    public string GetHistogramText()
     {
-        if (panelRoot != null)
-            panelRoot.SetActive(true);
-
-        UpdateText();
-    }
-
-    public void Hide()
-    {
-        if (panelRoot != null)
-            panelRoot.SetActive(false);
-    }
-
-    private void UpdateText()
-    {
-        if (histogramText == null)
-            return;
-
         int[] bins = new int[6];
 
         for (int i = 0; i < qOverEValues.Count; i++)
@@ -63,9 +36,7 @@ public class SimpleHistogramPanel : MonoBehaviour
         string text = "Ladungsverteilung\n\n";
 
         for (int i = 1; i <= 5; i++)
-        {
             text += i + "e: " + MakeBars(bins[i]) + "\n";
-        }
 
         text += "\nMesswerte:\n";
 
@@ -75,7 +46,15 @@ public class SimpleHistogramPanel : MonoBehaviour
                     ": q ¡Ö " + Mathf.RoundToInt(qOverEValues[i]) + "e\n";
         }
 
-        histogramText.text = text;
+        text += "\nJede Ladung liegt nahe bei einem ganzzahligen Vielfachen von e.";
+
+        return text;
+    }
+
+    private void RefreshOptionalText()
+    {
+        if (optionalText != null)
+            optionalText.text = GetHistogramText();
     }
 
     private string MakeBars(int count)

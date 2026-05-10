@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class StoryMeasurementRecorder : MonoBehaviour
 {
-    public SimpleHistogramPanel histogramPanel;
+    public HistogramPanel histogramPanel;
 
     public void ClearMeasurements()
     {

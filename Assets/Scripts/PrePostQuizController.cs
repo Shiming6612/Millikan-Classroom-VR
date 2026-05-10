@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 public class PrePostQuizController : MonoBehaviour
@@ -58,6 +59,10 @@ public class PrePostQuizController : MonoBehaviour
     public Behaviour[] behavioursToEnableAfterPreQuiz;
     public GameObject[] objectsToEnableAfterPreQuiz;
 
+    [Header("Events")]
+    public UnityEvent onPreQuizCompleted;
+    public UnityEvent onPostQuizCompleted;
+
     private readonly List<QuizQuestion> questions = new List<QuizQuestion>();
     private readonly List<int> preAnswers = new List<int>();
     private readonly List<int> postAnswers = new List<int>();
@@ -76,6 +81,7 @@ public class PrePostQuizController : MonoBehaviour
     public IReadOnlyList<int> PostAnswers => postAnswers;
     public int CorrectPostCount => correctPostCount;
     public int QuestionCount => questions.Count;
+    public QuizMode CurrentMode => currentMode;
 
     private void Awake()
     {
@@ -152,6 +158,7 @@ public class PrePostQuizController : MonoBehaviour
 
         ColorBlock colors = button.colors;
         colors.selectedColor = colors.normalColor;
+        colors.highlightedColor = colors.normalColor;
         button.colors = colors;
     }
 
@@ -224,13 +231,7 @@ public class PrePostQuizController : MonoBehaviour
         if (answerTextC != null)
             answerTextC.text = "C. " + q.answerC;
 
-        if (scoreText != null)
-        {
-            if (currentMode == QuizMode.PreQuiz)
-                scoreText.text = "";
-            else
-                scoreText.text = correctPostCount + "/" + questions.Count;
-        }
+        RefreshScoreText();
 
         Canvas.ForceUpdateCanvases();
     }
@@ -258,15 +259,16 @@ public class PrePostQuizController : MonoBehaviour
         postAnswers.Add(selectedIndex);
 
         bool isCorrect = selectedIndex == q.correctIndex;
+
         if (isCorrect)
             correctPostCount++;
 
         ShowPostFeedback(selectedIndex, q.correctIndex);
-
-        if (scoreText != null)
-            scoreText.text = correctPostCount + "/" + questions.Count;
+        RefreshScoreText();
 
         waitingForPostFeedback = true;
+        SetAnswerButtonsInteractable(false);
+
         feedbackRoutine = StartCoroutine(GoToNextPostQuestionAfterDelay());
     }
 
@@ -293,20 +295,42 @@ public class PrePostQuizController : MonoBehaviour
             SetButtonColor(selectedIndex, wrongColor);
     }
 
+    private void RefreshScoreText()
+    {
+        if (scoreText == null)
+            return;
+
+        if (currentMode == QuizMode.PreQuiz)
+        {
+            scoreText.text = "";
+            return;
+        }
+
+        scoreText.text = "Richtig: " + correctPostCount + "/" + questions.Count;
+    }
+
     private void FinishQuiz()
     {
         StopFeedbackRoutineIfNeeded();
         ClearButtonSelection();
         ResetButtonColors();
+        SetAnswerButtonsInteractable(false);
 
         if (currentMode == QuizMode.PreQuiz)
         {
             SetAfterPreQuizUnlocked(true);
             HideWall();
+            onPreQuizCompleted?.Invoke();
             return;
         }
 
         ShowResultGroup();
+
+        if (modeText != null)
+            modeText.text = "Wissenstest nach dem Experiment";
+
+        if (scoreText != null)
+            scoreText.text = "Richtig: " + correctPostCount + "/" + questions.Count;
 
         if (resultText != null)
             resultText.text = "Ergebnis: " + correctPostCount + "/" + questions.Count + " richtig.";
@@ -319,6 +343,9 @@ public class PrePostQuizController : MonoBehaviour
     {
         ClearButtonSelection();
         HideWall();
+
+        if (currentMode == QuizMode.PostQuiz)
+            onPostQuizCompleted?.Invoke();
     }
 
     private void ShowWall()

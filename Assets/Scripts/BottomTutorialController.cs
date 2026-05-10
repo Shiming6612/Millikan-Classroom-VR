@@ -1,6 +1,5 @@
 ﻿using TMPro;
 using UnityEngine;
-using UnityEngine.Events;
 
 public class BottomTutorialController : MonoBehaviour
 {
@@ -13,8 +12,11 @@ public class BottomTutorialController : MonoBehaviour
     public GameObject parameterPanelRoot;
     public GameObject guideUIRoot;
     public TMP_Text guideUIText;
-    public SimpleHistogramPanel histogramPanel;
+    public HistogramPanel histogramPanel;
     public GameObject forceArrowsRoot;
+
+    [Header("Scene Objects")]
+    public GameObject notebookObject;
 
     [Header("References")]
     public SpraySpawner spraySpawner;
@@ -22,12 +24,11 @@ public class BottomTutorialController : MonoBehaviour
     public DropSelectionManager selectionManager;
     public StoryMeasurementRecorder measurementRecorder;
     public Behaviour voltageKnobInput;
+    public PrePostQuizController quizController;
 
-    [Header("Return / Post Quiz")]
+    [Header("Return Point")]
     public Transform playerRoot;
     public Transform storyReturnPoint;
-    public GameObject postQuizRoot;
-    public UnityEvent onStartPostQuiz;
 
     [Header("Arrows")]
     public GameObject arrowSetup;
@@ -82,6 +83,7 @@ public class BottomTutorialController : MonoBehaviour
 
         SetTutorialInputComponentsEnabled(true);
         SetVoltageInteraction(false);
+        SetSelectionInteraction(false);
         HideAllTemporaryUI();
 
         if (dialogueRoot != null)
@@ -108,6 +110,8 @@ public class BottomTutorialController : MonoBehaviour
         TutorialInputLocked = true;
 
         SetTutorialInputComponentsEnabled(false);
+        SetVoltageInteraction(false);
+        SetSelectionInteraction(false);
         HideAllTemporaryUI();
 
         if (dialogueRoot != null)
@@ -123,6 +127,7 @@ public class BottomTutorialController : MonoBehaviour
 
         SetTutorialInputComponentsEnabled(true);
         SetVoltageInteraction(false);
+        SetSelectionInteraction(false);
         HideAllTemporaryUI();
 
         if (dialogueRoot != null)
@@ -168,7 +173,7 @@ public class BottomTutorialController : MonoBehaviour
             return;
         }
 
-        if (currentStep == 36)
+        if (currentStep == 40)
         {
             if (measurementsCompleted < requiredFloatingDroplets)
             {
@@ -223,6 +228,15 @@ public class BottomTutorialController : MonoBehaviour
     private void ApplyStepSideEffects(int step)
     {
         SetVoltageInteraction(false);
+        SetSelectionInteraction(false);
+        HideForceArrows();
+        HideGuideUI();
+        HideAllArrows();
+
+        if (step >= 23 && step <= 40)
+            ShowParameterPanel();
+        else
+            HideParameterPanel();
 
         switch (step)
         {
@@ -231,124 +245,130 @@ public class BottomTutorialController : MonoBehaviour
                 break;
 
             case 17:
-                HideParameterPanel();
-                HideGuideUI();
-                HideForceArrows();
-                HideHistogram();
                 if (spraySpawner != null)
                     spraySpawner.ReturnToRandomModeAndClearDrops();
+
+                ShowGuideUI(GetGuideSprayer());
                 break;
 
             case 22:
-                ShowGuideUI(
-                    "F_G = m · g\n" +
-                    "m = ρ_Öl · (4/3)πr³\n\n" +
-                    "ρ_Öl = 875 kg/m³\n" +
-                    "g = 9,81 m/s²\n\n" +
-                    "Nur r ist unbekannt."
-                );
+                ShowGuideUI(GetGuideGravityFormula());
                 break;
 
             case 23:
                 ShowParameterPanel();
+
                 if (radiusSliderController != null)
                     radiusSliderController.StartRadiusTask();
+
                 if (spraySpawner != null)
                     spraySpawner.EnableTutorialRadiusMode();
+
+                ShowGuideUI(GetGuideRadiusSlider());
                 break;
 
             case 25:
                 StartRadiusTask(0);
+                ShowGuideUI(GetGuideRadiusTask("0,5", "sehr langsam fallend"));
                 break;
 
             case 26:
                 StartRadiusTask(1);
+                ShowGuideUI(GetGuideRadiusTask("1,0", "mittlere Geschwindigkeit"));
                 break;
 
             case 27:
                 StartRadiusTask(2);
+                ShowGuideUI(GetGuideRadiusTask("1,5", "schnell fallend"));
                 break;
 
             case 28:
                 if (radiusSliderController != null)
                     radiusSliderController.EndRadiusTask();
+
                 if (spraySpawner != null)
                     spraySpawner.ReturnToRandomModeAndClearDrops();
-                break;
 
-            case 29:
-                ShowParameterPanel();
                 HideGuideUI();
-                HideForceArrows();
-                HideHistogram();
                 break;
 
             case 33:
                 StartNewMeasurement();
+                ShowGuideUI(GetGuideMeasurementSpray());
+                break;
+
+            case 34:
+                SetSelectionInteraction(true);
+                ShowGuideUI(GetGuideMeasurementSelect());
                 break;
 
             case 35:
                 SetVoltageInteraction(true);
                 ShowForceArrows();
+                ShowGuideUI(GetGuideVoltageTask());
                 break;
 
             case 37:
-                ShowGuideUI(
-                    "F_el = F_G\n\n" +
-                    "F_el = q · E\n" +
-                    "E = U / d\n\n" +
-                    "q · U / d = m · g\n" +
-                    "q = m · g · d / U\n\n" +
-                    "Grün: elektrische Kraft F_el\n" +
-                    "Blau: Gewichtskraft F_G"
-                );
                 ShowForceArrows();
+                ShowGuideUI(GetGuideElectricFormula());
                 break;
 
             case 38:
-                ShowGuideUI(
-                    "q = Ladung des Tröpfchens [C]\n" +
-                    "U = Spannung am Kondensator [V]\n" +
-                    "d = Plattenabstand [m] = 6,00 mm\n" +
-                    "m = Masse des Tröpfchens [kg]\n" +
-                    "g = 9,81 m/s²\n" +
-                    "E = U / d"
-                );
+                ShowForceArrows();
+                ShowGuideUI(GetGuideElectricFormula());
+                break;
+
+            case 39:
+                ShowGuideUI(GetGuideParameterExplanation());
                 break;
 
             case 41:
-                HideForceArrows();
                 SetVoltageInteraction(false);
+                SetSelectionInteraction(false);
+
                 if (spraySpawner != null)
                     spraySpawner.ResetAllDrops();
-                ShowHistogram();
+
+                ShowGuideUI(GetGuideHistogram());
+                break;
+
+            case 42:
+            case 43:
+            case 44:
+            case 45:
+            case 46:
+                ShowGuideUI(GetGuideHistogram());
                 break;
 
             case 47:
+                if (notebookObject != null)
+                    notebookObject.SetActive(true);
+
                 PlayBookSound();
+                HideGuideUI();
                 break;
 
             case 58:
-                HideHistogram();
-                HideParameterPanel();
-                HideGuideUI();
-                HideForceArrows();
-                SetVoltageInteraction(false);
+                if (notebookObject != null)
+                    notebookObject.SetActive(false);
+
+                HideAllTemporaryUI();
                 break;
         }
     }
 
     private void StartNewMeasurement()
     {
-        SetVoltageInteraction(false);
         ShowParameterPanel();
         HideForceArrows();
+        SetVoltageInteraction(false);
+        SetSelectionInteraction(false);
 
         if (spraySpawner != null)
             spraySpawner.ReturnToRandomModeAndClearDrops();
 
         if (selectionManager != null)
-            selectionManager.ClearSelection();
+            selectionManager.ClearSelectionAndHover();
 
         ResetVoltageToZero();
     }
@@ -454,7 +474,7 @@ public class BottomTutorialController : MonoBehaviour
         if (measurementsCompleted == 1 && !firstMeasurementExplanationShown)
         {
             firstMeasurementExplanationShown = true;
-            currentStep = 37;
+            currentStep = 36;
             ShowStep();
             return;
         }
@@ -583,7 +603,7 @@ public class BottomTutorialController : MonoBehaviour
                 return "Aufgabe: Tröpfchen zum Schweben bringen\n\nVersuch es mal so einzustellen, dass du es zum Schweben bringst.\nSo, dass das Tröpfchen hängt, als würde die Zeit stillstehen.\nDas elektrische Feld hält es exakt gegen die Schwerkraft.\nDie beiden Kräfte heben sich exakt auf.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
 
             case 36:
-                return "Das war deine erste Ladungsmessung.\nAber eine Messung ist noch keine Wissenschaft — das ist nur ein Datenpunkt.\nWas ich brauche, ist ein Muster.\nAlso bring bitte noch 4 weitere Tröpfchen, die du per Klick auswählst, nacheinander zum Schweben.";
+                return "Das war deine erste Ladungsmessung.\nAber eine Messung ist noch keine Wissenschaft — das ist nur ein Datenpunkt.\nWas ich brauche, ist ein Muster.";
 
             case 37:
                 return "Schau auf das Formel-Panel.\nDort siehst du das Kräftegleichgewicht und die Bedeutung der Kraftpfeile.";
@@ -714,6 +734,108 @@ public class BottomTutorialController : MonoBehaviour
         return "A: Weiter";
     }
 
+    private string GetGuideSprayer()
+    {
+        return "Zerstäuber\n\n" +
+               "Zielen + rechter Trigger:\n" +
+               "Öltröpfchen erzeugen\n\n" +
+               "Das elektrische Feld ist jetzt ausgeschaltet.";
+    }
+
+    private string GetGuideGravityFormula()
+    {
+        return "Schwerkraft und Radius\n\n" +
+               "F_G = m · g\n" +
+               "m = ρ_Öl · (4/3)πr³\n\n" +
+               "ρ_Öl = 875 kg/m³\n" +
+               "g = 9,81 m/s²\n\n" +
+               "Nur r ist unbekannt.";
+    }
+
+    private string GetGuideRadiusSlider()
+    {
+        return "Tröpfchengröße r\n\n" +
+               "Slider links: 0,3 µm\n" +
+               "Slider rechts: 2,0 µm\n\n" +
+               "Rechter Controller:\n" +
+               "auf den Slider zeigen und Trigger halten.\n\n" +
+               "Nach rechts: größer\n" +
+               "Nach links: kleiner";
+    }
+
+    private string GetGuideRadiusTask(string target, string label)
+    {
+        return "Radius-Aufgabe\n\n" +
+               "Ziel:\n" +
+               "r = " + target + " µm\n" +
+               label + "\n\n" +
+               "1. Radius einstellen\n" +
+               "2. Öltröpfchen sprühen\n" +
+               "3. Tropfen muss in den Plattenkondensator gelangen\n\n" +
+               "Du kannst mehrmals sprühen.";
+    }
+
+    private string GetGuideMeasurementSpray()
+    {
+        return "Messung starten\n\n" +
+               "Zerstäuber:\n" +
+               "Zielen + rechter Trigger\n\n" +
+               "Erzeuge neue Öltröpfchen.\n\n" +
+               "Danach wählst du ein Tröpfchen aus.";
+    }
+
+    private string GetGuideMeasurementSelect()
+    {
+        return "Tröpfchen auswählen\n\n" +
+               "Roter Strahl + rechter Trigger:\n" +
+               "Tröpfchen auswählen\n\n" +
+               "Die Auswahl wird gelb markiert.\n\n" +
+               "Die Daten erscheinen im Parameterpanel.";
+    }
+
+    private string GetGuideVoltageTask()
+    {
+        return "Schwebezustand\n\n" +
+               "Spannungsregler greifen\n" +
+               "Hand links / rechts bewegen:\n" +
+               "Spannung ändern\n\n" +
+               "X halten:\n" +
+               "Feineinstellung\n\n" +
+               "Ziel:\n" +
+               "Das Tröpfchen soll weder deutlich steigen noch deutlich fallen.";
+    }
+
+    private string GetGuideElectricFormula()
+    {
+        return "Kräftegleichgewicht\n\n" +
+               "F_el = F_G\n\n" +
+               "F_el = q · E\n" +
+               "E = U / d\n\n" +
+               "q · U / d = m · g\n" +
+               "q = m · g · d / U\n\n" +
+               "Grün: elektrische Kraft F_el\n" +
+               "Blau: Gewichtskraft F_G";
+    }
+
+    private string GetGuideParameterExplanation()
+    {
+        return "Messgrößen\n\n" +
+               "q = Ladung des Tröpfchens [C]\n" +
+               "U = Spannung [V]\n" +
+               "d = Plattenabstand = 6,00 mm\n" +
+               "m = Masse des Tröpfchens [kg]\n" +
+               "g = 9,81 m/s²\n" +
+               "E = U / d";
+    }
+
+    private string GetGuideHistogram()
+    {
+        if (histogramPanel != null)
+            return histogramPanel.GetHistogramText();
+
+        return "Ladungsverteilung\n\nNoch keine Messwerte vorhanden.";
+    }
+
     private void UpdateArrowForStep(int step)
     {
         HideAllArrows();
@@ -758,9 +880,11 @@ public class BottomTutorialController : MonoBehaviour
     {
         HideParameterPanel();
         HideGuideUI();
-        HideHistogram();
         HideForceArrows();
         HideAllArrows();
+
+        if (notebookObject != null)
+            notebookObject.SetActive(false);
     }
 
     private void ShowParameterPanel()
@@ -788,18 +912,6 @@ public class BottomTutorialController : MonoBehaviour
     {
         if (guideUIRoot != null)
             guideUIRoot.SetActive(false);
-    }
-
-    private void ShowHistogram()
-    {
-        if (histogramPanel != null)
-            histogramPanel.Show();
-    }
-
-    private void HideHistogram()
-    {
-        if (histogramPanel != null)
-            histogramPanel.Hide();
     }
 
     private void ShowForceArrows()
@@ -830,6 +942,12 @@ public class BottomTutorialController : MonoBehaviour
             voltageKnobInput.enabled = enabled;
     }
 
+    private void SetSelectionInteraction(bool enabled)
+    {
+        if (selectionManager != null)
+            selectionManager.SetSelectionEnabled(enabled);
+    }
+
     private void ResetVoltageToZero()
     {
         VoltageKnobInput v = voltageKnobInput as VoltageKnobInput;
@@ -849,10 +967,10 @@ public class BottomTutorialController : MonoBehaviour
 
     private void StartPostQuiz()
     {
-        if (postQuizRoot != null)
-            postQuizRoot.SetActive(true);
-
-        onStartPostQuiz?.Invoke();
+        if (quizController != null)
+            quizController.StartPostQuiz();
+        else
+            Debug.LogWarning("[BottomTutorialController] QuizController is not assigned.");
     }
 
     private void PlayBookSound()
