@@ -52,7 +52,7 @@ public class PrePostQuizController : MonoBehaviour
     public Color correctColor = Color.green;
     public Color wrongColor = Color.red;
     public float postFeedbackSeconds = 0.8f;
-    public bool forceSelectedColorToNormal = true;
+    public bool keepInspectorHighlightColor = true;
 
     [Header("Flow")]
     public bool startPreQuizOnStart = true;
@@ -92,8 +92,8 @@ public class PrePostQuizController : MonoBehaviour
         SetupQuestions();
         SetupButtons();
 
-        if (forceSelectedColorToNormal)
-            ApplySafeButtonColorBlocks();
+        if (keepInspectorHighlightColor)
+            KeepHighlightedColorFromInspector();
     }
 
     private void Start()
@@ -143,22 +143,23 @@ public class PrePostQuizController : MonoBehaviour
         }
     }
 
-    private void ApplySafeButtonColorBlocks()
+    private void KeepHighlightedColorFromInspector()
     {
-        ApplySafeButtonColorBlock(answerButtonA);
-        ApplySafeButtonColorBlock(answerButtonB);
-        ApplySafeButtonColorBlock(answerButtonC);
-        ApplySafeButtonColorBlock(continueButton);
+        // 不再覆盖 highlightedColor。
+        // 只把 selectedColor 调成 normalColor，避免按钮点完后一直停留在选中颜色。
+        KeepHighlight(answerButtonA);
+        KeepHighlight(answerButtonB);
+        KeepHighlight(answerButtonC);
+        KeepHighlight(continueButton);
     }
 
-    private void ApplySafeButtonColorBlock(Button button)
+    private void KeepHighlight(Button button)
     {
         if (button == null)
             return;
 
         ColorBlock colors = button.colors;
         colors.selectedColor = colors.normalColor;
-        colors.highlightedColor = colors.normalColor;
         button.colors = colors;
     }
 

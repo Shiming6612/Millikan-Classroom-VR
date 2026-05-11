@@ -16,7 +16,7 @@ public class VoltageKnobInput : MonoBehaviour
     public Transform pivot;
     public GrabInteractable grabInteractable;
 
-    [Header("Hands / Controllers (optional manual refs)")]
+    [Header("Hands / Controllers")]
     public Transform leftControllerTransform;
     public Transform rightControllerTransform;
 
@@ -30,7 +30,7 @@ public class VoltageKnobInput : MonoBehaviour
         "RightHandAnchor"
     };
 
-    [Header("Voltage Range (V)")]
+    [Header("Voltage Range")]
     public float minVoltage = 0f;
     public float maxVoltage = 800f;
     public float startVoltage = 0f;
@@ -40,7 +40,7 @@ public class VoltageKnobInput : MonoBehaviour
     public float degreesForFullRange = 360f;
     public bool invertDirection = false;
 
-    [Header("Fine Tune (hold X on left controller)")]
+    [Header("Fine Tune")]
     public bool enableFineTune = true;
     public float fineTuneMultiplier = 3f;
 
@@ -52,7 +52,7 @@ public class VoltageKnobInput : MonoBehaviour
     public bool snapToStep = true;
     public float voltageStep = 1f;
 
-    [Header("Visual Highlight (grab only)")]
+    [Header("Visual Highlight")]
     public Renderer[] targetRenderers;
     public bool useEmissionHighlight = true;
     public Color grabbedColor = Color.yellow;
@@ -100,12 +100,8 @@ public class VoltageKnobInput : MonoBehaviour
         if (pivot == null)
             pivot = knobTransform;
 
-        if (visualRoot == null)
-            visualRoot = knobTransform;
-
-        visualInitialLocalRotation = visualRoot.localRotation;
-
-        SetVoltage(startVoltage, true);
+        if (visualRoot != null)
+            visualInitialLocalRotation = visualRoot.localRotation;
 
         grabbed = false;
         activeController = null;
@@ -114,8 +110,9 @@ public class VoltageKnobInput : MonoBehaviour
 
         RefreshInteractorCache();
         InitMaterials();
+
+        SetVoltage(startVoltage, true);
         RefreshVisualState();
-        ApplyVisualRotationFromVoltage();
     }
 
     private void Update()
@@ -153,6 +150,7 @@ public class VoltageKnobInput : MonoBehaviour
         float usedDeg = invertDirection ? -accumDeg : accumDeg;
 
         float effectiveDegreesForFullRange = degreesForFullRange;
+
         if (enableFineTune && IsLeftXHeld())
             effectiveDegreesForFullRange *= Mathf.Max(1f, fineTuneMultiplier);
 
@@ -160,15 +158,7 @@ public class VoltageKnobInput : MonoBehaviour
         float denom = Mathf.Max(1e-3f, effectiveDegreesForFullRange);
         float targetVoltage = grabStartVoltage + (usedDeg / denom) * range;
 
-        float clampedVoltage = Mathf.Clamp(targetVoltage, minVoltage, maxVoltage);
-
-        if (!Mathf.Approximately(clampedVoltage, targetVoltage))
-        {
-            targetVoltage = clampedVoltage;
-            float t = (targetVoltage - grabStartVoltage) / Mathf.Max(1e-6f, range);
-            usedDeg = t * denom;
-            accumDeg = invertDirection ? -usedDeg : usedDeg;
-        }
+        targetVoltage = Mathf.Clamp(targetVoltage, minVoltage, maxVoltage);
 
         float alpha = 1f - Mathf.Exp(-smoothing * Time.deltaTime);
         float smoothVoltage = Mathf.Lerp(CurrentVoltage, targetVoltage, alpha);
@@ -176,7 +166,7 @@ public class VoltageKnobInput : MonoBehaviour
         SetVoltage(smoothVoltage);
 
         if (debugLogs)
-            Debug.Log($"[VoltageKnobInput] grabbed={grabbed}, fineTune={IsLeftXHeld()}, accumDeg={accumDeg:F2}, V={CurrentVoltage:F1}");
+            Debug.Log("[VoltageKnobInput] V=" + CurrentVoltage.ToString("0.0"));
     }
 
     public void BeginGrab()
@@ -191,7 +181,7 @@ public class VoltageKnobInput : MonoBehaviour
         if (chosen == null)
         {
             if (debugLogs)
-                Debug.LogWarning("[VoltageKnobInput] BeginGrab failed: no valid interactor found.");
+                Debug.LogWarning("[VoltageKnobInput] BeginGrab failed: no controller found.");
 
             return;
         }
@@ -206,9 +196,6 @@ public class VoltageKnobInput : MonoBehaviour
 
         if (startVec.sqrMagnitude < 1e-6f)
         {
-            if (debugLogs)
-                Debug.LogWarning("[VoltageKnobInput] BeginGrab failed: interactor vector too small.");
-
             activeController = null;
             return;
         }
@@ -216,21 +203,14 @@ public class VoltageKnobInput : MonoBehaviour
         prevVectorOnPlane = startVec.normalized;
         hasPrevVector = true;
         accumDeg = 0f;
-
         grabStartVoltage = CurrentVoltage;
         grabbed = true;
 
         RefreshVisualState();
-
-        if (debugLogs)
-            Debug.Log($"[VoltageKnobInput] BeginGrab with {activeController.name}");
     }
 
     public void EndGrab()
     {
-        if (debugLogs && activeController != null)
-            Debug.Log($"[VoltageKnobInput] EndGrab from {activeController.name}");
-
         grabbed = false;
         activeController = null;
         hasPrevVector = false;
@@ -363,13 +343,6 @@ public class VoltageKnobInput : MonoBehaviour
             clamped = Mathf.Clamp(clamped, minVoltage, maxVoltage);
         }
 
-        float edgeSnapThreshold = Mathf.Max(voltageStep * 5f, 5f);
-
-        if (clamped <= minVoltage + edgeSnapThreshold)
-            clamped = minVoltage;
-        else if (clamped >= maxVoltage - edgeSnapThreshold)
-            clamped = maxVoltage;
-
         if (!forceUI && Mathf.Approximately(clamped, CurrentVoltage))
             return;
 
@@ -383,7 +356,7 @@ public class VoltageKnobInput : MonoBehaviour
         }
 
         if (voltageText != null)
-            voltageText.text = $"{CurrentVoltage:0.0} V";
+            voltageText.text = CurrentVoltage.ToString("0.0") + " V";
 
         ApplyVisualRotationFromVoltage();
     }

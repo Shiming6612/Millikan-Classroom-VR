@@ -8,11 +8,13 @@ public class BottomTutorialController : MonoBehaviour
     public TMP_Text buttonHintText;
     public GameObject dialogueRoot;
 
-    [Header("Panels")]
-    public GameObject parameterPanelRoot;
+    [Header("Guide UI")]
     public GameObject guideUIRoot;
     public TMP_Text guideUIText;
     public HistogramPanel histogramPanel;
+
+    [Header("Panels")]
+    public GameObject parameterPanelRoot;
     public GameObject forceArrowsRoot;
 
     [Header("Scene Objects")]
@@ -267,6 +269,10 @@ public class BottomTutorialController : MonoBehaviour
                 ShowGuideUI(GetGuideRadiusSlider());
                 break;
 
+            case 24:
+                ShowGuideUI(GetGuideRadiusSlider());
+                break;
+
             case 25:
                 StartRadiusTask(0);
                 ShowGuideUI(GetGuideRadiusTask("0,5", "sehr langsam fallend"));
@@ -329,7 +335,7 @@ public class BottomTutorialController : MonoBehaviour
                 if (spraySpawner != null)
                     spraySpawner.ResetAllDrops();
 
-                ShowGuideUI(GetGuideHistogram());
+                ShowHistogramGuide();
                 break;
 
             case 42:
@@ -337,7 +343,7 @@ public class BottomTutorialController : MonoBehaviour
             case 44:
             case 45:
             case 46:
-                ShowGuideUI(GetGuideHistogram());
+                ShowHistogramGuide();
                 break;
 
             case 47:
@@ -346,6 +352,19 @@ public class BottomTutorialController : MonoBehaviour
 
                 PlayBookSound();
                 HideGuideUI();
+                break;
+
+            case 48:
+            case 49:
+            case 50:
+            case 51:
+            case 52:
+            case 53:
+            case 54:
+            case 55:
+            case 56:
+            case 57:
+                ShowGuideUI(GetGuideNotebook());
                 break;
 
             case 58:
@@ -642,31 +661,31 @@ public class BottomTutorialController : MonoBehaviour
                 return "Er fand heraus, dass ich weit mehr Tröpfchen gemessen hatte\nals ich je veröffentlicht habe.";
 
             case 49:
-                return "Millikan Notebook · 1911\n\n#47 — q = 1.613 ×10⁻¹⁹ C ✓\n#48 — q = 1.21 ×10⁻¹⁹ C Won't work\n#49 — q = 3.204 ×10⁻¹⁹ C (×2) ✓\n#50 — q = 0.94 ×10⁻¹⁹ C Schiefe Messung";
-
-            case 50:
-                return "Millikan Notebook · 1911\n\n#51 — q = 4.836 ×10⁻¹⁹ C (×3) ✓\n#52 — Tropfen verloren Error — discard\n#53 — q = 1.598 ×10⁻¹⁹ C ✓";
-
-            case 51:
                 return "Neben manchen Datenpunkten standen meine handschriftlichen Anmerkungen:\n'Won't work'.\n'Schiefe Messung'.\n'Error — discard'.";
 
-            case 52:
+            case 50:
                 return "War das falsch?\nIch glaube: Nein.\nIch habe Messungen ausgeschlossen, bei denen ich technische Fehler erkannt habe —\nLuftzug, Erschütterungen, einen zitternden Tropfen.";
 
-            case 53:
+            case 51:
                 return "Das ist kein Betrug.\nDas ist Urteilsvermögen.";
 
-            case 54:
+            case 52:
                 return "Aber der Historiker Allan Franklin hat 1981 gezeigt:\nDie Daten, die ich wegließ, hätten meinen Endwert kaum verändert.\nNur die statistische Unsicherheit wäre größer geworden —\nvon 0,2% auf fast 2%.";
 
-            case 55:
+            case 53:
                 return "Die Selektion hat meine Präzision verbessert,\naber nicht mein Ergebnis.";
 
-            case 56:
+            case 54:
                 return "Die Frage, wann Datenselektion legitim ist,\nbeschäftigt Wissenschaftler bis heute.\nEs gibt keine einfache Antwort.\nAber es gibt eine klare Anforderung:\nTransparenz.";
 
-            case 57:
+            case 55:
                 return "Was ich ausschließe — und warum —\ndas muss dokumentiert sein.";
+
+            case 56:
+                return "Deshalb ist entscheidend:\nNicht nur der Messwert zählt,\nsondern auch, ob der Ausschluss begründet wurde.";
+
+            case 57:
+                return "Damit hast du gesehen:\nDatenselektion kann legitim sein — aber nur mit Transparenz.";
 
             case 58:
                 return "Es war 1913.\nIch publizierte meinen Endwert:\ne = 1,592 mal zehn hoch minus neunzehn Coulomb.\nUnsicherheit: 0,2 Prozent.";
@@ -711,7 +730,7 @@ public class BottomTutorialController : MonoBehaviour
 
         return "Aufgabe:\n\n" +
                "r = " + target + " µm → " + label + "\n\n" +
-               "Stelle den Radius mit dem rechten Controller ein.\n" +
+               "Stelle den Radius mit dem linken Controller ein.\n" +
                "Drücke danach den rechten Trigger am Zerstäuber.\n" +
                "Der Tropfen muss in den Plattenkondensator gelangen.\n" +
                "Du kannst mehrmals sprühen und die Tropfen beobachten.";
@@ -736,104 +755,131 @@ public class BottomTutorialController : MonoBehaviour
 
     private string GetGuideSprayer()
     {
-        return "Zerstäuber\n\n" +
-               "Zielen + rechter Trigger:\n" +
-               "Öltröpfchen erzeugen\n\n" +
-               "Das elektrische Feld ist jetzt ausgeschaltet.";
+        return
+            "Zerstäuber\n\n" +
+            "Zielen + rechter Trigger:\n" +
+            "Öltröpfchen erzeugen\n\n" +
+            "Das elektrische Feld ist ausgeschaltet.";
     }
 
     private string GetGuideGravityFormula()
     {
-        return "Schwerkraft und Radius\n\n" +
-               "F_G = m · g\n" +
-               "m = ρ_Öl · (4/3)πr³\n\n" +
-               "ρ_Öl = 875 kg/m³\n" +
-               "g = 9,81 m/s²\n\n" +
-               "Nur r ist unbekannt.";
+        return
+            "Schwerkraft und Radius\n\n" +
+            "F_G = m · g\n" +
+            "m = ρ_Öl · (4/3)πr³\n\n" +
+            "ρ_Öl = 875 kg/m³\n" +
+            "g = 9,81 m/s²\n\n" +
+            "Nur r ist unbekannt.";
     }
 
     private string GetGuideRadiusSlider()
     {
-        return "Tröpfchengröße r\n\n" +
-               "Slider links: 0,3 µm\n" +
-               "Slider rechts: 2,0 µm\n\n" +
-               "Rechter Controller:\n" +
-               "auf den Slider zeigen und Trigger halten.\n\n" +
-               "Nach rechts: größer\n" +
-               "Nach links: kleiner";
+        return
+            "Tröpfchengröße r\n\n" +
+            "Slider links: 0,3 µm\n" +
+            "Slider rechts: 2,0 µm\n\n" +
+            "Linker Controller:\n" +
+            "mit dem linken Strahl auf den Slider zeigen\n" +
+            "und den linken Trigger halten.\n\n" +
+            "Nach rechts: größer\n" +
+            "Nach links: kleiner";
     }
 
     private string GetGuideRadiusTask(string target, string label)
     {
-        return "Radius-Aufgabe\n\n" +
-               "Ziel:\n" +
-               "r = " + target + " µm\n" +
-               label + "\n\n" +
-               "1. Radius einstellen\n" +
-               "2. Öltröpfchen sprühen\n" +
-               "3. Tropfen muss in den Plattenkondensator gelangen\n\n" +
-               "Du kannst mehrmals sprühen.";
+        return
+            "Radius-Aufgabe\n\n" +
+            "Ziel:\n" +
+            "r = " + target + " µm\n" +
+            label + "\n\n" +
+            "1. Radius mit dem linken Controller einstellen\n" +
+            "2. Öltröpfchen sprühen\n" +
+            "3. Tropfen muss in den Plattenkondensator gelangen\n\n" +
+            "Du kannst mehrmals sprühen.";
     }
 
     private string GetGuideMeasurementSpray()
     {
-        return "Messung starten\n\n" +
-               "Zerstäuber:\n" +
-               "Zielen + rechter Trigger\n\n" +
-               "Erzeuge neue Öltröpfchen.\n\n" +
-               "Danach wählst du ein Tröpfchen aus.";
+        return
+            "Messung starten\n\n" +
+            "Zerstäuber:\n" +
+            "Zielen + rechter Trigger\n\n" +
+            "Erzeuge neue Öltröpfchen.\n\n" +
+            "Danach wählst du ein Tröpfchen aus.";
     }
 
     private string GetGuideMeasurementSelect()
     {
-        return "Tröpfchen auswählen\n\n" +
-               "Roter Strahl + rechter Trigger:\n" +
-               "Tröpfchen auswählen\n\n" +
-               "Die Auswahl wird gelb markiert.\n\n" +
-               "Die Daten erscheinen im Parameterpanel.";
+        return
+            "Tröpfchen auswählen\n\n" +
+            "Roter Strahl + rechter Trigger:\n" +
+            "Tröpfchen auswählen\n\n" +
+            "Die Auswahl wird gelb markiert.\n\n" +
+            "Die Daten erscheinen im Parameterpanel.";
     }
 
     private string GetGuideVoltageTask()
     {
-        return "Schwebezustand\n\n" +
-               "Spannungsregler greifen\n" +
-               "Hand links / rechts bewegen:\n" +
-               "Spannung ändern\n\n" +
-               "X halten:\n" +
-               "Feineinstellung\n\n" +
-               "Ziel:\n" +
-               "Das Tröpfchen soll weder deutlich steigen noch deutlich fallen.";
+        return
+            "Schwebezustand\n\n" +
+            "Spannungsregler greifen\n" +
+            "Hand links / rechts bewegen:\n" +
+            "Spannung ändern\n\n" +
+            "X halten:\n" +
+            "Feineinstellung\n\n" +
+            "Ziel:\n" +
+            "Das Tröpfchen soll weder deutlich steigen noch deutlich fallen.";
     }
 
     private string GetGuideElectricFormula()
     {
-        return "Kräftegleichgewicht\n\n" +
-               "F_el = F_G\n\n" +
-               "F_el = q · E\n" +
-               "E = U / d\n\n" +
-               "q · U / d = m · g\n" +
-               "q = m · g · d / U\n\n" +
-               "Grün: elektrische Kraft F_el\n" +
-               "Blau: Gewichtskraft F_G";
+        return
+            "Kräftegleichgewicht\n\n" +
+            "F_el = F_G\n\n" +
+            "F_el = q · E\n" +
+            "E = U / d\n\n" +
+            "q · U / d = m · g\n" +
+            "q = m · g · d / U\n\n" +
+            "Grün: elektrische Kraft F_el\n" +
+            "Blau: Gewichtskraft F_G";
     }
 
     private string GetGuideParameterExplanation()
     {
-        return "Messgrößen\n\n" +
-               "q = Ladung des Tröpfchens [C]\n" +
-               "U = Spannung [V]\n" +
-               "d = Plattenabstand = 6,00 mm\n" +
-               "m = Masse des Tröpfchens [kg]\n" +
-               "g = 9,81 m/s²\n" +
-               "E = U / d";
+        return
+            "Messgrößen\n\n" +
+            "q = Ladung des Tröpfchens [C]\n" +
+            "U = Spannung [V]\n" +
+            "d = Plattenabstand = 6,00 mm\n" +
+            "m = Masse des Tröpfchens [kg]\n" +
+            "g = 9,81 m/s²\n" +
+            "E = U / d";
     }
 
-    private string GetGuideHistogram()
+    private string GetGuideNotebook()
+    {
+        return
+            "Millikan Notebook · 1911\n\n" +
+            "#47 — q = 1.613 ×10⁻¹⁹ C ✓\n" +
+            "#48 — q = 1.21 ×10⁻¹⁹ C Won't work\n" +
+            "#49 — q = 3.204 ×10⁻¹⁹ C (×2) ✓\n" +
+            "#50 — q = 0.94 ×10⁻¹⁹ C Schiefe Messung\n" +
+            "#51 — q = 4.836 ×10⁻¹⁹ C (×3) ✓\n" +
+            "#52 — Tropfen verloren Error — discard\n" +
+            "#53 — q = 1.598 ×10⁻¹⁹ C ✓";
+    }
+
+    private void ShowHistogramGuide()
     {
         if (histogramPanel != null)
-            return histogramPanel.GetHistogramText();
+            histogramPanel.Show();
 
-        return "Ladungsverteilung\n\nNoch keine Messwerte vorhanden.";
+        string guide = histogramPanel != null
+            ? histogramPanel.GetGuideText()
+            : "Ladungsverteilung\n\nKeine Messwerte vorhanden.";
+
+        ShowGuideUI(guide);
     }
 
     private void UpdateArrowForStep(int step)
@@ -883,6 +929,9 @@ public class BottomTutorialController : MonoBehaviour
         HideForceArrows();
         HideAllArrows();
 
+        if (histogramPanel != null)
+            histogramPanel.Hide();
+
         if (notebookObject != null)
             notebookObject.SetActive(false);
     }
@@ -912,6 +961,9 @@ public class BottomTutorialController : MonoBehaviour
     {
         if (guideUIRoot != null)
             guideUIRoot.SetActive(false);
+
+        if (histogramPanel != null)
+            histogramPanel.Hide();
     }
 
     private void ShowForceArrows()

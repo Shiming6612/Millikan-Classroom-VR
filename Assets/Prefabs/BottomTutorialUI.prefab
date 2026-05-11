@@ -361,7 +361,6 @@ GameObject:
   - component: {fileID: 6007221312874558564}
   - component: {fileID: 4562316421754294912}
   - component: {fileID: 4253368133549446360}
-  - component: {fileID: 4966847348616002}
   m_Layer: 0
   m_Name: BottomTutorialUI
   m_TagString: Untagged
@@ -452,30 +451,3 @@ MonoBehaviour:
   m_BlockingMask:
     serializedVersion: 2
     m_Bits: 4294967295
---- !u!114 &4966847348616002
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7573062778247953910}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6094e8f6636c0004d8c8abcb79c27ffd, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  dialogueText: {fileID: 2195200860681743915}
-  buttonHintText: {fileID: 3990722849787077967}
-  dialogueRoot: {fileID: 7573062778247953910}
-  arrowSetup: {fileID: 0}
-  arrowSprayer: {fileID: 0}
-  arrowSelectDrop: {fileID: 0}
-  arrowLight: {fileID: 0}
-  arrowCapacitor: {fileID: 0}
-  arrowVoltageKnob: {fileID: 0}
-  dropletTriggered: 0
-  dropSelected: 0
-  voltageSolved: 0
-  componentsToDisableDuringTutorial:
-  - {fileID: 0}
-  - {fileID: 0}
