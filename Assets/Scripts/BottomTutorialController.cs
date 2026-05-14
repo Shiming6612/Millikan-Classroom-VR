@@ -11,6 +11,8 @@ public class BottomTutorialController : MonoBehaviour
     [Header("Guide UI")]
     public GameObject guideUIRoot;
     public TMP_Text guideUIText;
+
+    [Header("Histogram UI")]
     public HistogramPanel histogramPanel;
 
     [Header("Panels")]
@@ -19,6 +21,7 @@ public class BottomTutorialController : MonoBehaviour
 
     [Header("Scene Objects")]
     public GameObject notebookObject;
+    public GameObject startTeleportArrow;
 
     [Header("References")]
     public SpraySpawner spraySpawner;
@@ -45,6 +48,11 @@ public class BottomTutorialController : MonoBehaviour
 
     [Header("Measurement Task")]
     public int requiredFloatingDroplets = 5;
+
+    [Header("Voice")]
+    public AudioSource voiceSource;
+    public AudioClip[] stepVoiceClips;
+    public bool stopVoiceWhenStepChanges = true;
 
     [Header("Sounds")]
     public AudioSource taskCompleteSfxSource;
@@ -87,6 +95,7 @@ public class BottomTutorialController : MonoBehaviour
         SetVoltageInteraction(false);
         SetSelectionInteraction(false);
         HideAllTemporaryUI();
+        StopVoice();
 
         if (dialogueRoot != null)
             dialogueRoot.SetActive(false);
@@ -102,6 +111,9 @@ public class BottomTutorialController : MonoBehaviour
 
         if (OVRInput.GetDown(OVRInput.Button.One))
             TryAdvanceWithAButton();
+
+        if (OVRInput.GetDown(OVRInput.Button.Two))
+            TrySkipSectionWithBButton();
     }
 
     public void BeginTutorialSession()
@@ -111,10 +123,14 @@ public class BottomTutorialController : MonoBehaviour
         tutorialSessionActive = true;
         TutorialInputLocked = true;
 
+        if (startTeleportArrow != null)
+            startTeleportArrow.SetActive(false);
+
         SetTutorialInputComponentsEnabled(false);
         SetVoltageInteraction(false);
         SetSelectionInteraction(false);
         HideAllTemporaryUI();
+        StopVoice();
 
         if (dialogueRoot != null)
             dialogueRoot.SetActive(true);
@@ -131,6 +147,7 @@ public class BottomTutorialController : MonoBehaviour
         SetVoltageInteraction(false);
         SetSelectionInteraction(false);
         HideAllTemporaryUI();
+        StopVoice();
 
         if (dialogueRoot != null)
             dialogueRoot.SetActive(false);
@@ -193,6 +210,28 @@ public class BottomTutorialController : MonoBehaviour
         NextStep();
     }
 
+    private void TrySkipSectionWithBButton()
+    {
+        if (!IsSkipStep(currentStep))
+            return;
+
+        if (currentStep == 4)
+            currentStep = 17;
+        else if (currentStep == 28)
+            currentStep = 33;
+        else if (currentStep == 47)
+            currentStep = 58;
+        else if (currentStep == 58)
+            currentStep = 66;
+
+        ShowStep();
+    }
+
+    private bool IsSkipStep(int step)
+    {
+        return step == 4 || step == 28 || step == 47 || step == 58;
+    }
+
     private void NextStep()
     {
         if (currentStep < LastStepIndex)
@@ -211,6 +250,7 @@ public class BottomTutorialController : MonoBehaviour
         ApplyStepSideEffects(currentStep);
         RefreshCurrentText();
         UpdateArrowForStep(currentStep);
+        PlayVoiceForCurrentStep();
     }
 
     private void RefreshCurrentText()
@@ -233,6 +273,7 @@ public class BottomTutorialController : MonoBehaviour
         SetSelectionInteraction(false);
         HideForceArrows();
         HideGuideUI();
+        HideHistogramUI();
         HideAllArrows();
 
         if (step >= 23 && step <= 40)
@@ -242,10 +283,6 @@ public class BottomTutorialController : MonoBehaviour
 
         switch (step)
         {
-            case 0:
-                HideAllTemporaryUI();
-                break;
-
             case 17:
                 if (spraySpawner != null)
                     spraySpawner.ReturnToRandomModeAndClearDrops();
@@ -275,17 +312,17 @@ public class BottomTutorialController : MonoBehaviour
 
             case 25:
                 StartRadiusTask(0);
-                ShowGuideUI(GetGuideRadiusTask("0,5", "sehr langsam fallend"));
+                ShowGuideUI(GetGuideRadiusTask("0.5", "sehr langsam fallend"));
                 break;
 
             case 26:
                 StartRadiusTask(1);
-                ShowGuideUI(GetGuideRadiusTask("1,0", "mittlere Geschwindigkeit"));
+                ShowGuideUI(GetGuideRadiusTask("1.0", "mittlere Geschwindigkeit"));
                 break;
 
             case 27:
                 StartRadiusTask(2);
-                ShowGuideUI(GetGuideRadiusTask("1,5", "schnell fallend"));
+                ShowGuideUI(GetGuideRadiusTask("1.5", "schnell fallend"));
                 break;
 
             case 28:
@@ -315,10 +352,6 @@ public class BottomTutorialController : MonoBehaviour
                 break;
 
             case 37:
-                ShowForceArrows();
-                ShowGuideUI(GetGuideElectricFormula());
-                break;
-
             case 38:
                 ShowForceArrows();
                 ShowGuideUI(GetGuideElectricFormula());
@@ -509,210 +542,239 @@ public class BottomTutorialController : MonoBehaviour
         ShowStep();
     }
 
+    private void PlayVoiceForCurrentStep()
+    {
+        if (voiceSource == null)
+            return;
+
+        if (stopVoiceWhenStepChanges)
+            voiceSource.Stop();
+
+        if (stepVoiceClips == null)
+            return;
+
+        if (currentStep < 0 || currentStep >= stepVoiceClips.Length)
+            return;
+
+        AudioClip clip = stepVoiceClips[currentStep];
+
+        if (clip == null)
+            return;
+
+        voiceSource.clip = clip;
+        voiceSource.Play();
+    }
+
+    private void StopVoice()
+    {
+        if (voiceSource != null)
+            voiceSource.Stop();
+    }
+
     private string GetDialogueForCurrentStep()
     {
         switch (currentStep)
         {
             case 0:
-                return "Ah. Ein Klassenzimmer. Gut. Das kenne ich.\nBei uns sahen sie etwas anders aus — aber das Prinzip ist dasselbe.\nMein Name ist Robert Andrews Millikan.\nIch war Physikprofessor an der University of Chicago — und später am California Institute of Technology.";
+                return "Ah. Ein Klassenzimmer. Gut. Das kenne ich.\nMein Name ist Robert Andrews Millikan.\nIch war Physikprofessor in Chicago und später am California Institute of Technology.";
 
             case 1:
-                return "Aber egal…Ich habe ein Problem.\nOder genauer gesagt: Ich habe eine Frage — und ich brauche jemanden, der mir hilft, sie zu beantworten.\nIst elektrische Ladung unteilbar?";
+                return "Ich habe eine Frage — und ich brauche jemanden, der mir hilft.\nIst elektrische Ladung unteilbar?";
 
             case 2:
-                return "Gibt es ein kleinstes elektrisches Paket — eine Art Atom der Ladung —\noder fließt Elektrizität einfach kontinuierlich, wie Wasser durch einen Schlauch?\nIch habe ein Experiment gebaut, das diese Frage beantworten kann.\nAber ich kann es nicht alleine durchführen.";
+                return "Gibt es ein kleinstes elektrisches Paket?\nOder fließt Elektrizität kontinuierlich, wie Wasser durch einen Schlauch?";
 
             case 3:
-                return "Dazu brauche ich einen Assistenten - wie dich!\nDu müsstest die Geräte bedienen, während ich erkläre, was gerade passiert.\nAußerdem musst du gut aufpassen.\nGenau wie mein Doktorand Harvey Fletcher damals.\nBist du bereit diese Rolle zu übernehmen und mir zu helfen?";
+                return "Ich habe ein Experiment gebaut, das diese Frage beantworten kann.\nAber ich kann es nicht alleine durchführen.\nDazu brauche ich einen Assistenten — wie dich.";
 
             case 4:
                 return "Ausgezeichnet. Dann legen wir los.\nKomm zum Experiment — ich zeige dir, womit wir es zu tun haben.";
 
             case 5:
-                return "Gut. Dann fangen wir von vorne an.\nIch bin 1868 in Morrison, Illinois geboren.\nPhysik hat mich schon immer fasziniert.\nDie Frage, woraus Materie wirklich besteht.";
+                return "Ich bin 1868 in Morrison, Illinois geboren.\nPhysik hat mich schon immer fasziniert:\nWas ist Materie? Was ist Elektrizität?";
 
             case 6:
-                return "Was Elektrizität eigentlich ist.\nWas hinter den Gleichungen steckt….\n1909 haben mein Doktorand Harvey Fletcher und ich begonnen, diesen Apparat hier zu entwickeln.";
+                return "1909 haben Harvey Fletcher und ich begonnen,\ndiesen Apparat zu entwickeln.";
 
             case 7:
-                return "Fletcher hatte die entscheidende Idee: Statt Wasser — Öl.\nUnsere Tröpfchen bleiben stundenlang stabil.\nDas klingt banal.\nAber es hat alles verändert.";
+                return "Fletcher hatte die entscheidende Idee:\nStatt Wasser verwenden wir Öl.\nÖltröpfchen bleiben viel länger stabil.";
 
             case 8:
-                return "Was wir herausfinden wollten:\nGibt es eine kleinste Einheit elektrischer Ladung — oder ist Elektrizität so etwas wie eine Flüssigkeit, die man beliebig klein aufteilen kann?\nJ.J. Thomson hatte 1897 gezeigt, dass es Elektronen gibt — kleine, negativ geladene Teilchen.";
+                return "J. J. Thomson hatte gezeigt, dass es Elektronen gibt.\nAber wie groß ist ihre Ladung?\nGenau das wollte ich messen.";
 
             case 9:
-                return "Aber wie groß ist ihre Ladung?\nDas wusste niemand genau.\nIch wollte es wissen.\nUnd heute erfährst du, wie ich es gemessen habe.";
+                return "Heute erfährst du,\nwie dieses Experiment funktioniert\nund wie man damit die Elementarladung bestimmt.";
 
             case 10:
-                return "Hier ist er. Mein Apparat.\nFünf Dinge arbeiten zusammen — und jedes einzelne ist entscheidend.\nIch erkläre dir jede einzelne Komponente nacheinander.";
+                return "Hier ist mein Apparat.\nFünf Dinge arbeiten zusammen.\nIch erkläre dir jede Komponente.";
 
             case 11:
-                return "Dieser einfache Zerstäuber — fast wie ein Parfümflakon — ist der Anfang von allem.\nEin kurzer Druck, und Millionen winziger Öltröpfchen werden in die Messkammer geblasen.\nDurch die Reibung beim Zerstäuben laden sich viele davon elektrisch auf.\nGenau das sind die entscheidenden Öltröpfchen für uns.";
+                return "Der Zerstäuber ist der Anfang.\nEr erzeugt viele kleine Öltröpfchen.\nDurch Reibung werden einige davon elektrisch geladen.";
 
             case 12:
-                return "Diese Tröpfchen sind viel zu klein, um sie direkt zu sehen.\nDas Mikroskop macht sie sichtbar — als helle Lichtpunkte auf dunklem Hintergrund.\nAber Vorsicht: Das Mikroskop spiegelt das Bild.";
+                return "Die Tröpfchen sind sehr klein.\nDas Mikroskop macht sie sichtbar.\nAber es spiegelt das Bild.";
 
             case 13:
-                return "Was wir sehen, sinkt in Wirklichkeit — es sieht aus, als würde es steigen.\nDas verwirrt am Anfang.\nDeshalb haben wir hier in der Simulation die Öltröpfchen für das bloße Auge sichtbar gemacht und wir sehen direkt, ob die Öltröpfchen sinken oder steigen.";
+                return "In dieser Simulation sehen wir direkt,\nob die Öltröpfchen sinken oder steigen.";
 
             case 14:
-                return "Das Licht kommt schräg von der Seite.\nOhne es würden wir gar nichts sehen.\nDie Tröpfchen streuen das Licht wie Staubkörner in einem Sonnenstrahl — plötzlich leuchten sie auf.";
+                return "Das Licht kommt von der Seite.\nDie Tröpfchen streuen das Licht\nund werden dadurch sichtbar.";
 
             case 15:
-                return "Das Herzstück.\nZwei Metallplatten, exakt 6 Millimeter auseinander.\nWenn ich eine Spannung anlege, entsteht zwischen ihnen ein elektrisches Feld — gleichmäßig, kontrolliert.\nDieses Feld wird auf unsere Tröpfchen wirken. Wie stark, das liegt in unserer Hand.";
+                return "Das Herzstück sind zwei Metallplatten.\nSie sind 6 Millimeter voneinander entfernt.\nZwischen ihnen entsteht ein elektrisches Feld.";
 
             case 16:
-                return "Dieser Regler ist unser wichtigstes Werkzeug.\nEr bestimmt, wie stark das elektrische Feld zwischen den Platten ist.\nDrehen wir ihn hoch — zieht das Feld geladene Tröpfchen nach oben.\nDrehen wir ihn auf null — fallen sie wieder frei.\nDie richtige Einstellung ist alles.";
+                return "Mit dem Spannungsregler veränderst du das Feld.\nWenn die Spannung steigt,\nwird die elektrische Kraft stärker.";
 
             case 17:
-                return "Aufgabe: Zerstäuber benutzen\n\nDas Feld ist ausgeschaltet.\nBitte geh mit deiner Hand zum Zerstäuber und drücke den rechten Trigger.";
+                return "Aufgabe: Zerstäuber benutzen\n\nZiele mit dem rechten Controller auf den Zerstäuber.\nDrücke den rechten Trigger, um Öltröpfchen zu erzeugen.";
 
             case 18:
-                return "Wie du siehst werden die ersten Tröpfchen in den Apparat gesprüht.\nDie Tröpfchen fallen.\nLangsam — aber sie fallen.\nDie Schwerkraft zieht sie nach unten.";
+                return "Die Tröpfchen fallen.\nLangsam — aber sie fallen.\nDie Schwerkraft zieht sie nach unten.";
 
             case 19:
-                return "Das ist die erste Kraft, mit der wir es zu tun haben.\nWarum ist das wichtig?\nWeil sich aus der Fallgeschwindigkeit eines Tröpfchens der Radius r berechnen lässt.";
+                return "Aus der Fallgeschwindigkeit können wir den Radius r bestimmen.\nGrößere Tröpfchen fallen schneller.";
 
             case 20:
-                return "Wir benötigen den Radius, um im nächsten Schritt die Ladung bestimmen zu können.\nAber das schauen wir uns später an.\nDie Dichte des Öls kenne ich — 875 Kilogramm pro Kubikmeter.\nDie Erdbeschleunigung kennst du.";
+                return "Die Dichte des Öls kennen wir.\nDie Erdbeschleunigung kennen wir auch.\nWas fehlt, ist der Radius.";
 
             case 21:
-                return "Was ich nicht kenne: den Radius des Tröpfchens.\nDen messe ich aus der Fallgeschwindigkeit.\nSchnelleres Fallen bedeutet: größeres Tröpfchen.\nEinfacher Zusammenhang — aber fundamental wichtig.";
+                return "Den Radius messen wir aus der Fallbewegung.\nDas ist der erste wichtige Schritt.";
 
             case 22:
-                return "Schau auf die Formel neben dem Experiment.\nDort siehst du die bekannten Werte.";
+                return "Schau auf die Formel im GuideUI.\nDort siehst du die bekannten Werte.";
 
             case 23:
-                return "Ein physischer Slider erscheint im VR-Raum.\nEr ist beschriftet: Tröpfchengröße r.\nLinks: 0,3 µm. Rechts: 2,0 µm.";
+                return "Ein Slider erscheint.\nEr steuert die Tröpfchengröße r.\nLinks: 0.3 µm. Rechts: 2.0 µm.";
 
             case 24:
-                return "Greifen Sie den Regler.\nSchieben Sie ihn nach rechts — das Tröpfchen wird größer.\nBeobachten Sie, wie es schneller fällt.\nNach links — kleiner, langsamer.\n\nDas ist das Stokes'sche Gesetz:\nDie Reibungskraft der Luft hängt vom Radius ab.";
+                return "Bewege den Slider.\nKleinere Tröpfchen fallen langsamer.\nGrößere Tröpfchen fallen schneller.";
 
             case 25:
-                return GetRadiusTaskText("0,5", "sehr langsam fallend");
+                return GetRadiusTaskText("0.5", "sehr langsam fallend");
 
             case 26:
-                return GetRadiusTaskText("1,0", "mittlere Geschwindigkeit");
+                return GetRadiusTaskText("1.0", "mittlere Geschwindigkeit");
 
             case 27:
-                return GetRadiusTaskText("1,5", "schnell fallend");
+                return GetRadiusTaskText("1.5", "schnell fallend");
 
             case 28:
-                return "Gut. Sie verstehen jetzt: Der Radius bestimmt, wie schnell ein Tröpfchen fällt.\nUnd aus der Fallgeschwindigkeit können wir den Radius berechnen.\nJetzt kommt der eigentliche Schritt.";
+                return "Gut. Du siehst jetzt:\nDer Radius bestimmt die Fallgeschwindigkeit.\nJetzt kommt der eigentliche Messschritt.";
 
             case 29:
-                return "Wir sehen einen Regler, um die Spannung im Feld einzustellen.\nDreh den Regler mal hoch und achte auf das ausgewählte Tröpfchen.\nDas Tröpfchen verändert seine Geschwindigkeit.";
+                return "Nun betrachten wir das elektrische Feld.\nWenn die Spannung steigt,\nwirkt eine elektrische Kraft auf das geladene Tröpfchen.";
 
             case 30:
-                return "Die elektrische Kraft — die Coulomb-Kraft — wirkt.\nJe mehr Spannung, desto stärker.";
+                return "Diese Kraft heißt Coulomb-Kraft.\nJe höher die Spannung,\ndesto stärker wird sie.";
 
             case 31:
-                return "Dreh den Spannungsregler vor dir langsam nach oben.\nSchau mal, der grüne Pfeil wächst.\nDie elektrische Kraft wird stärker.";
+                return "Der grüne Pfeil zeigt die elektrische Kraft.\nWenn die Spannung steigt,\nwächst dieser Pfeil.";
 
             case 32:
-                return "Das Tröpfchen verlangsamt sich.\nWenn die Spannung zu hoch wird, dann steigt das Tröpfchen auf einmal.";
+                return "Wenn die Spannung passend ist,\nkann das Tröpfchen schweben.\nDann gleichen sich die Kräfte aus.";
 
             case 33:
-                return "Aufgabe: Neues Öltröpfchen erzeugen\n\nRichte deine Hand auf den Zerstäuber.\nDrücke den rechten Trigger.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
+                return "Aufgabe: Neues Öltröpfchen erzeugen\n\nZiele mit dem rechten Controller auf den Zerstäuber.\nDrücke den rechten Trigger.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
 
             case 34:
-                return "Aufgabe: Öltröpfchen auswählen\n\nZiele mit dem roten Strahl auf ein Tröpfchen.\nDrücke den rechten Trigger.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
+                return "Aufgabe: Öltröpfchen auswählen\n\nZiele mit dem roten Strahl des rechten Controllers auf ein Tröpfchen.\nDrücke den rechten Trigger.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
 
             case 35:
-                return "Aufgabe: Tröpfchen zum Schweben bringen\n\nVersuch es mal so einzustellen, dass du es zum Schweben bringst.\nSo, dass das Tröpfchen hängt, als würde die Zeit stillstehen.\nDas elektrische Feld hält es exakt gegen die Schwerkraft.\nDie beiden Kräfte heben sich exakt auf.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
+                return "Aufgabe: Tröpfchen zum Schweben bringen\n\nGreife den Spannungsregler mit dem rechten Controller.\nStelle die Spannung so ein,\ndass das Tröpfchen weder deutlich steigt noch fällt.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
 
             case 36:
-                return "Das war deine erste Ladungsmessung.\nAber eine Messung ist noch keine Wissenschaft — das ist nur ein Datenpunkt.\nWas ich brauche, ist ein Muster.";
+                return "Das war deine erste Ladungsmessung.\nAber eine Messung ist nur ein Datenpunkt.\nWir brauchen ein Muster.";
 
             case 37:
-                return "Schau auf das Formel-Panel.\nDort siehst du das Kräftegleichgewicht und die Bedeutung der Kraftpfeile.";
+                return "Schau auf das GuideUI.\nDort siehst du das Kräftegleichgewicht.";
 
             case 38:
-                return "Und aus diesem Gleichgewicht folgt alles.\nWenn das Tröpfchen schwebt, weiß ich: Die elektrische Kraft ist gleich der Schwerkraft.\nIch kenne die Masse — aus dem Radius, den wir gerade gemessen haben.\nIch kenne den Plattenabstand: 6,00 Millimeter.\nUnd die Spannung lese ich ab. Damit berechne ich die Ladung q.";
+                return "Wenn das Tröpfchen schwebt,\nist die elektrische Kraft gleich der Gewichtskraft.\nDamit berechnen wir die Ladung q.";
 
             case 39:
-                return "Auf dem Panel siehst du jetzt die Größen, die wir für die Berechnung brauchen.";
+                return "Auf dem Parameterpanel siehst du die Größen,\ndie wir für die Berechnung brauchen.";
 
             case 40:
-                return "Was ich brauche, ist ein Muster.\nAlso bring bitte noch 4 weitere Tröpfchen, die du per Klick auswählst, nacheinander zum Schweben.\nDu siehst dann wie die Aufgabenleiste sich füllt.";
+                return "Wir brauchen mehrere Datenpunkte.\nBringe noch vier weitere Tröpfchen nacheinander zum Schweben.";
 
             case 41:
-                return "Alle fünf Messungen sind abgeschlossen.\nSchau dir nun das Histogramm an.\nDie gemessenen Ladungen werden dort eingetragen.";
+                return "Alle fünf Messungen sind abgeschlossen.\nSchau dir nun das Histogramm an.";
 
             case 42:
-                return "Ich habe nicht ein Tröpfchen gemessen.\nIch habe hunderte gemessen. Über Monate.\nUnd dabei etwas Erstaunliches beobachtet:\nDie Ladungen, die ich gemessen habe, waren nie zufällig verteilt.";
+                return "Ich habe nicht nur ein Tröpfchen gemessen.\nIch habe viele gemessen — über Monate.";
 
             case 43:
-                return "Sie häuften sich immer an denselben Stellen.\nImmer ein Vielfaches derselben Grundeinheit.\nEinfach. Doppelt. Dreifach. Viermal. Nie dazwischen.\nDie Natur schien zu zählen — in ganzen Zahlen.";
+                return "Die Ladungen waren nicht zufällig verteilt.\nSie lagen immer nahe bei denselben Werten.";
 
             case 44:
-                return "Elektrische Ladung ist nicht kontinuierlich.\nSie kommt in Paketen.\nDas kleinste Paket — das ist die Elementarladung e.\nJedes Tröpfchen trägt genau ein, zwei, drei oder mehr dieser Pakete.\nNie einen Bruchteil. Das nenne ich Ladungsquantisierung.";
+                return "Diese Werte sind Vielfache einer kleinsten Einheit.\nDas ist die Elementarladung e.";
 
             case 45:
-                return "Du hast zuvor den Schwebeversuch bereits 5x durchgeführt\nund siehst deine Messwerte in dem Histogramm.\nSiehst du es?\nDie Ladungen häufen sich.\nNicht zufällig — bei bestimmten Werten.\nBei ganzzahligen Vielfachen.";
+                return "Deine Messwerte zeigen dasselbe Muster:\nDie Ladungen häufen sich bei ganzzahligen Vielfachen.";
 
             case 46:
-                return "Das Muster wird sichtbar.\nDas ist Wissenschaft.\nNicht eine Messung — sondern ein Muster aus vielen Messungen.\nUnd das Muster ist eindeutig:\nElektrische Ladung ist gequantelt.\nEs gibt eine kleinste Einheit.";
+                return "Das ist Ladungsquantisierung.\nElektrische Ladung kommt in Paketen.";
 
             case 47:
-                return "Ich muss dir etwas zeigen.\nEtwas, das 1978 ein Historiker namens Gerald Holton entdeckt hat —\nin meinen Original-Notizbüchern aus den Jahren 1911 und 1912.";
+                return "Ich muss dir etwas zeigen.\n1978 entdeckte Gerald Holton meine Original-Notizbücher.";
 
             case 48:
-                return "Er fand heraus, dass ich weit mehr Tröpfchen gemessen hatte\nals ich je veröffentlicht habe.";
+                return "Er fand heraus,\ndass ich mehr Tröpfchen gemessen hatte,\nals ich veröffentlicht habe.";
 
             case 49:
-                return "Neben manchen Datenpunkten standen meine handschriftlichen Anmerkungen:\n'Won't work'.\n'Schiefe Messung'.\n'Error — discard'.";
+                return "Neben manchen Datenpunkten standen Anmerkungen:\n'Won't work', 'Schiefe Messung', 'Error — discard'.";
 
             case 50:
-                return "War das falsch?\nIch glaube: Nein.\nIch habe Messungen ausgeschlossen, bei denen ich technische Fehler erkannt habe —\nLuftzug, Erschütterungen, einen zitternden Tropfen.";
+                return "War das falsch?\nIch glaube: Nein.\nIch habe Messungen mit technischen Fehlern ausgeschlossen.";
 
             case 51:
                 return "Das ist kein Betrug.\nDas ist Urteilsvermögen.";
 
             case 52:
-                return "Aber der Historiker Allan Franklin hat 1981 gezeigt:\nDie Daten, die ich wegließ, hätten meinen Endwert kaum verändert.\nNur die statistische Unsicherheit wäre größer geworden —\nvon 0,2% auf fast 2%.";
+                return "Allan Franklin zeigte 1981:\nDie weggelassenen Daten hätten den Endwert kaum verändert.";
 
             case 53:
-                return "Die Selektion hat meine Präzision verbessert,\naber nicht mein Ergebnis.";
+                return "Die statistische Unsicherheit wäre größer geworden,\naber das Ergebnis wäre fast gleich geblieben.";
 
             case 54:
-                return "Die Frage, wann Datenselektion legitim ist,\nbeschäftigt Wissenschaftler bis heute.\nEs gibt keine einfache Antwort.\nAber es gibt eine klare Anforderung:\nTransparenz.";
+                return "Die Selektion verbesserte die Präzision,\naber nicht das Ergebnis.";
 
             case 55:
-                return "Was ich ausschließe — und warum —\ndas muss dokumentiert sein.";
+                return "Datenselektion beschäftigt Wissenschaftler bis heute.\nEine klare Anforderung bleibt: Transparenz.";
 
             case 56:
-                return "Deshalb ist entscheidend:\nNicht nur der Messwert zählt,\nsondern auch, ob der Ausschluss begründet wurde.";
+                return "Was ausgeschlossen wird — und warum —\nmuss dokumentiert sein.";
 
             case 57:
-                return "Damit hast du gesehen:\nDatenselektion kann legitim sein — aber nur mit Transparenz.";
+                return "Damit hast du gesehen:\nNicht nur der Messwert zählt,\nsondern auch der Umgang mit Daten.";
 
             case 58:
-                return "Es war 1913.\nIch publizierte meinen Endwert:\ne = 1,592 mal zehn hoch minus neunzehn Coulomb.\nUnsicherheit: 0,2 Prozent.";
+                return "1913 veröffentlichte ich meinen Endwert:\ne = 1.592 * 10^-19 Coulomb.\nUnsicherheit: 0.2 Prozent.";
 
             case 59:
-                return "Es ist die genaueste Messung der Elementarladung,\ndie es bis dahin gibt.\nDer heute akzeptierte Wert ist 1,602.";
+                return "Das war damals die genaueste Messung der Elementarladung.\nDer heutige Wert ist 1.602 * 10^-19 Coulomb.";
 
             case 60:
-                return "Die Abweichung kommt aus einem leicht falschen Literaturwert\nfür die Luftviskosität,\nden ich damals verwendet habe.\nNicht aus meiner Methode.";
+                return "Die Abweichung lag an einem leicht falschen Wert\nfür die Luftviskosität.\nNicht an der Methode.";
 
             case 61:
-                return "Aber der eigentliche Beitrag ist nicht die Zahl.\nEs ist das Prinzip.\nElektrische Ladung ist gequantelt.";
+                return "Der eigentliche Beitrag ist nicht nur die Zahl.\nEs ist das Prinzip:\nElektrische Ladung ist gequantelt.";
 
             case 62:
                 return "Es gibt keine halbe Elementarladung.\nKeine viertel Elementarladung.\nDie Natur zählt in ganzen Zahlen.";
 
             case 63:
-                return "Das ist fundamental.\nDas ist eine der tiefsten Strukturen der Materie.";
+                return "Das ist eine fundamentale Struktur der Materie.";
 
             case 64:
-                return "Seit 1995 haben automatisierte Experimente\nüber hundert Millionen Öltropfen vermessen.\nKein Hinweis auf Bruchladungen.\nKein einziger.";
+                return "Seit 1995 wurden über hundert Millionen Öltropfen vermessen.\nEs gab keinen Hinweis auf Bruchladungen.";
 
             case 65:
-                return "Du hast es mit deinen Messungen hier auch nochmal in der Neuzeit bewiesen,\ndurch die schwebenden Tröpfchen,\ndass meine Theorie stimmt.";
+                return "Auch deine Messungen zeigen dieses Muster:\nLadungen treten als Vielfache von e auf.";
 
             case 66:
-                return "Ich danke dir dafür.\nDu hast heute sehr viel gelernt,\nlass uns jetzt mal schauen wie viel du davon behalten hast.\nGern, darfst du jederzeit wieder vorbei kommen und mit mir experimentieren.\nIch freu mich drauf!";
+                return "Danke für deine Hilfe.\nJetzt folgt derselbe Wissenstest noch einmal.\nDieses Mal bekommst du Feedback zu deinen Antworten.";
 
             default:
                 return "";
@@ -731,9 +793,8 @@ public class BottomTutorialController : MonoBehaviour
         return "Aufgabe:\n\n" +
                "r = " + target + " µm → " + label + "\n\n" +
                "Stelle den Radius mit dem linken Controller ein.\n" +
-               "Drücke danach den rechten Trigger am Zerstäuber.\n" +
-               "Der Tropfen muss in den Plattenkondensator gelangen.\n" +
-               "Du kannst mehrmals sprühen und die Tropfen beobachten.";
+               "Benutze den linken Trigger am Slider.\n" +
+               "Erzeuge danach Öltröpfchen mit dem rechten Trigger am Zerstäuber.";
     }
 
     private string GetButtonHintForCurrentStep()
@@ -741,8 +802,8 @@ public class BottomTutorialController : MonoBehaviour
         if (currentStep == 3)
             return "A: Ja, ich helfe dir!";
 
-        if (currentStep == 4)
-            return "A: Erst mehr erfahren — wer bist du?";
+        if (IsSkipStep(currentStep))
+            return "A: Weiter    B: Abschnitt überspringen";
 
         if (IsBlockingStep(currentStep))
             return "";
@@ -755,131 +816,140 @@ public class BottomTutorialController : MonoBehaviour
 
     private string GetGuideSprayer()
     {
-        return
-            "Zerstäuber\n\n" +
-            "Zielen + rechter Trigger:\n" +
-            "Öltröpfchen erzeugen\n\n" +
-            "Das elektrische Feld ist ausgeschaltet.";
+        return "Zerstäuber\n\nController: rechter Controller\nTaste: rechter Trigger\nAktion: Öltröpfchen erzeugen";
     }
 
     private string GetGuideGravityFormula()
     {
-        return
-            "Schwerkraft und Radius\n\n" +
-            "F_G = m · g\n" +
-            "m = ρ_Öl · (4/3)πr³\n\n" +
-            "ρ_Öl = 875 kg/m³\n" +
-            "g = 9,81 m/s²\n\n" +
-            "Nur r ist unbekannt.";
+        return "Schwerkraft und Radius\n\nF_G = m * g\nm = ρ_Öl * (4/3) * π * r^3\n\nρ_Öl = 875 kg/m^3\ng = 9.81 m/s^2";
     }
 
     private string GetGuideRadiusSlider()
     {
-        return
-            "Tröpfchengröße r\n\n" +
-            "Slider links: 0,3 µm\n" +
-            "Slider rechts: 2,0 µm\n\n" +
-            "Linker Controller:\n" +
-            "mit dem linken Strahl auf den Slider zeigen\n" +
-            "und den linken Trigger halten.\n\n" +
-            "Nach rechts: größer\n" +
-            "Nach links: kleiner";
+        return "Tröpfchengröße r\n\nSlider: 0.3 µm bis 2.0 µm\n\nController: linker Controller\nTaste: linker Trigger am Slider\nAktion: Radius-Slider bewegen";
     }
 
     private string GetGuideRadiusTask(string target, string label)
     {
-        return
-            "Radius-Aufgabe\n\n" +
-            "Ziel:\n" +
-            "r = " + target + " µm\n" +
-            label + "\n\n" +
-            "1. Radius mit dem linken Controller einstellen\n" +
-            "2. Öltröpfchen sprühen\n" +
-            "3. Tropfen muss in den Plattenkondensator gelangen\n\n" +
-            "Du kannst mehrmals sprühen.";
+        return "Radius-Aufgabe\n\nZiel: r = " + target + " µm\n" + label +
+               "\n\n1. Linker Trigger: Slider halten\n2. Rechter Trigger: Öltröpfchen erzeugen\n3. Tropfen muss in den Kondensator gelangen.";
     }
 
     private string GetGuideMeasurementSpray()
     {
-        return
-            "Messung starten\n\n" +
-            "Zerstäuber:\n" +
-            "Zielen + rechter Trigger\n\n" +
-            "Erzeuge neue Öltröpfchen.\n\n" +
-            "Danach wählst du ein Tröpfchen aus.";
+        return "Messung starten\n\nController: rechter Controller\nTaste: rechter Trigger\nAktion: Öltröpfchen erzeugen";
     }
 
     private string GetGuideMeasurementSelect()
     {
-        return
-            "Tröpfchen auswählen\n\n" +
-            "Roter Strahl + rechter Trigger:\n" +
-            "Tröpfchen auswählen\n\n" +
-            "Die Auswahl wird gelb markiert.\n\n" +
-            "Die Daten erscheinen im Parameterpanel.";
+        return "Tröpfchen auswählen\n\nController: rechter Controller\nTaste: rechter Trigger\nAktion: Mit dem roten Strahl ein Öltröpfchen auswählen.";
     }
 
     private string GetGuideVoltageTask()
     {
-        return
-            "Schwebezustand\n\n" +
-            "Spannungsregler greifen\n" +
-            "Hand links / rechts bewegen:\n" +
-            "Spannung ändern\n\n" +
-            "X halten:\n" +
-            "Feineinstellung\n\n" +
-            "Ziel:\n" +
-            "Das Tröpfchen soll weder deutlich steigen noch deutlich fallen.";
+        return "Schwebezustand\n\nController: rechter Controller\nTaste: Regler greifen / Grab\nFeineinstellung: X-Taste links halten\n\nZiel: Tröpfchen soll weder steigen noch fallen.";
     }
 
     private string GetGuideElectricFormula()
     {
-        return
-            "Kräftegleichgewicht\n\n" +
-            "F_el = F_G\n\n" +
-            "F_el = q · E\n" +
-            "E = U / d\n\n" +
-            "q · U / d = m · g\n" +
-            "q = m · g · d / U\n\n" +
-            "Grün: elektrische Kraft F_el\n" +
-            "Blau: Gewichtskraft F_G";
+        return "Kräftegleichgewicht\n\nF_el = F_G\nF_el = q * E\nE = U / d\nq = m * g * d / U";
     }
 
     private string GetGuideParameterExplanation()
     {
-        return
-            "Messgrößen\n\n" +
-            "q = Ladung des Tröpfchens [C]\n" +
-            "U = Spannung [V]\n" +
-            "d = Plattenabstand = 6,00 mm\n" +
-            "m = Masse des Tröpfchens [kg]\n" +
-            "g = 9,81 m/s²\n" +
-            "E = U / d";
+        return "Messgrößen\n\nq = Ladung [C]\nU = Spannung [V]\nd = 6.00 mm\nm = Masse [kg]\ng = 9.81 m/s^2\nE = U / d";
     }
 
     private string GetGuideNotebook()
     {
-        return
-            "Millikan Notebook · 1911\n\n" +
-            "#47 — q = 1.613 ×10⁻¹⁹ C ✓\n" +
-            "#48 — q = 1.21 ×10⁻¹⁹ C Won't work\n" +
-            "#49 — q = 3.204 ×10⁻¹⁹ C (×2) ✓\n" +
-            "#50 — q = 0.94 ×10⁻¹⁹ C Schiefe Messung\n" +
-            "#51 — q = 4.836 ×10⁻¹⁹ C (×3) ✓\n" +
-            "#52 — Tropfen verloren Error — discard\n" +
-            "#53 — q = 1.598 ×10⁻¹⁹ C ✓";
+        return "Millikan Notebook 1911\n\n" +
+               "#47 q = 1.613 * 10^-19 C OK\n" +
+               "#48 q = 1.21 * 10^-19 C Won't work\n" +
+               "#49 q = 3.204 * 10^-19 C x2 OK\n" +
+               "#50 q = 0.94 * 10^-19 C Schiefe Messung\n" +
+               "#51 q = 4.836 * 10^-19 C x3 OK\n" +
+               "#52 Tropfen verloren Error discard\n" +
+               "#53 q = 1.598 * 10^-19 C OK";
+    }
+
+    private string GetGuideHistogramText()
+    {
+        return "Ladungsverteilung\n\nDie Balken zeigen, bei welchen Vielfachen von e deine Messwerte liegen.";
     }
 
     private void ShowHistogramGuide()
     {
+        ShowGuideUI(GetGuideHistogramText());
+
         if (histogramPanel != null)
             histogramPanel.Show();
+    }
 
-        string guide = histogramPanel != null
-            ? histogramPanel.GetGuideText()
-            : "Ladungsverteilung\n\nKeine Messwerte vorhanden.";
+    private void HideAllTemporaryUI()
+    {
+        HideParameterPanel();
+        HideGuideUI();
+        HideHistogramUI();
+        HideForceArrows();
+        HideAllArrows();
 
-        ShowGuideUI(guide);
+        if (notebookObject != null)
+            notebookObject.SetActive(false);
+    }
+
+    private void ShowParameterPanel()
+    {
+        if (parameterPanelRoot != null)
+            parameterPanelRoot.SetActive(true);
+    }
+
+    private void HideParameterPanel()
+    {
+        if (parameterPanelRoot != null)
+            parameterPanelRoot.SetActive(false);
+    }
+
+    private void ShowGuideUI(string text)
+    {
+        if (guideUIRoot != null)
+            guideUIRoot.SetActive(true);
+
+        if (guideUIText != null)
+            guideUIText.text = text;
+    }
+
+    private void HideGuideUI()
+    {
+        if (guideUIRoot != null)
+            guideUIRoot.SetActive(false);
+    }
+
+    private void HideHistogramUI()
+    {
+        if (histogramPanel != null)
+            histogramPanel.Hide();
+    }
+
+    private void ShowForceArrows()
+    {
+        if (forceArrowsRoot != null)
+            forceArrowsRoot.SetActive(true);
+    }
+
+    private void HideForceArrows()
+    {
+        if (forceArrowsRoot != null)
+            forceArrowsRoot.SetActive(false);
+    }
+
+    private void HideAllArrows()
+    {
+        if (arrowSetup != null) arrowSetup.SetActive(false);
+        if (arrowSprayer != null) arrowSprayer.SetActive(false);
+        if (arrowSelectDrop != null) arrowSelectDrop.SetActive(false);
+        if (arrowLight != null) arrowLight.SetActive(false);
+        if (arrowCapacitor != null) arrowCapacitor.SetActive(false);
+        if (arrowVoltageKnob != null) arrowVoltageKnob.SetActive(false);
     }
 
     private void UpdateArrowForStep(int step)
@@ -922,72 +992,6 @@ public class BottomTutorialController : MonoBehaviour
         }
     }
 
-    private void HideAllTemporaryUI()
-    {
-        HideParameterPanel();
-        HideGuideUI();
-        HideForceArrows();
-        HideAllArrows();
-
-        if (histogramPanel != null)
-            histogramPanel.Hide();
-
-        if (notebookObject != null)
-            notebookObject.SetActive(false);
-    }
-
-    private void ShowParameterPanel()
-    {
-        if (parameterPanelRoot != null)
-            parameterPanelRoot.SetActive(true);
-    }
-
-    private void HideParameterPanel()
-    {
-        if (parameterPanelRoot != null)
-            parameterPanelRoot.SetActive(false);
-    }
-
-    private void ShowGuideUI(string text)
-    {
-        if (guideUIRoot != null)
-            guideUIRoot.SetActive(true);
-
-        if (guideUIText != null)
-            guideUIText.text = text;
-    }
-
-    private void HideGuideUI()
-    {
-        if (guideUIRoot != null)
-            guideUIRoot.SetActive(false);
-
-        if (histogramPanel != null)
-            histogramPanel.Hide();
-    }
-
-    private void ShowForceArrows()
-    {
-        if (forceArrowsRoot != null)
-            forceArrowsRoot.SetActive(true);
-    }
-
-    private void HideForceArrows()
-    {
-        if (forceArrowsRoot != null)
-            forceArrowsRoot.SetActive(false);
-    }
-
-    private void HideAllArrows()
-    {
-        if (arrowSetup != null) arrowSetup.SetActive(false);
-        if (arrowSprayer != null) arrowSprayer.SetActive(false);
-        if (arrowSelectDrop != null) arrowSelectDrop.SetActive(false);
-        if (arrowLight != null) arrowLight.SetActive(false);
-        if (arrowCapacitor != null) arrowCapacitor.SetActive(false);
-        if (arrowVoltageKnob != null) arrowVoltageKnob.SetActive(false);
-    }
-
     private void SetVoltageInteraction(bool enabled)
     {
         if (voltageKnobInput != null)
@@ -1021,8 +1025,6 @@ public class BottomTutorialController : MonoBehaviour
     {
         if (quizController != null)
             quizController.StartPostQuiz();
-        else
-            Debug.LogWarning("[BottomTutorialController] QuizController is not assigned.");
     }
 
     private void PlayBookSound()
