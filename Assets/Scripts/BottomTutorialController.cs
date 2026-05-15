@@ -681,7 +681,7 @@ public class BottomTutorialController : MonoBehaviour
                 return "Aufgabe: Öltröpfchen auswählen\n\nZiele mit dem roten Strahl des rechten Controllers auf ein Tröpfchen.\nDrücke den rechten Trigger.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
 
             case 35:
-                return "Aufgabe: Tröpfchen zum Schweben bringen\n\nGreife den Spannungsregler mit dem rechten Controller.\nStelle die Spannung so ein,\ndass das Tröpfchen weder deutlich steigt noch fällt.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
+                return "Aufgabe: Tröpfchen zum Schweben bringen\n\nGreife den Spannungsregler mit dem linken Controller.\nBewege die Hand langsam nach links oder rechts,\nbis das Tröpfchen weder deutlich steigt noch fällt.\n\nMessung: " + measurementsCompleted + "/" + requiredFloatingDroplets;
 
             case 36:
                 return "Das war deine erste Ladungsmessung.\nAber eine Messung ist nur ein Datenpunkt.\nWir brauchen ein Muster.";
@@ -847,7 +847,7 @@ public class BottomTutorialController : MonoBehaviour
 
     private string GetGuideVoltageTask()
     {
-        return "Schwebezustand\n\nController: rechter Controller\nTaste: Regler greifen / Grab\nFeineinstellung: X-Taste links halten\n\nZiel: Tröpfchen soll weder steigen noch fallen.";
+        return "Schwebezustand\n\nController: linker Controller\nTaste: mittlere Griff-Taste\nAktion: Hand langsam nach links oder rechts bewegen\nFeineinstellung: zusätzlich X-Taste gedrückt halten\n\nZiel: Tröpfchen soll weder steigen noch fallen.";
     }
 
     private string GetGuideElectricFormula()
