@@ -16,6 +16,9 @@ public class VoltageKnobInput : MonoBehaviour
     public Transform pivot;
     public GrabInteractable grabInteractable;
 
+    [Header("Interaction")]
+    public bool interactionEnabled = false;
+
     [Header("Hands / Controllers")]
     public Transform leftControllerTransform;
     public Transform rightControllerTransform;
@@ -36,8 +39,8 @@ public class VoltageKnobInput : MonoBehaviour
     public float startVoltage = 0f;
 
     [Header("Input Mapping")]
-    public Vector3 knobLocalAxis = new Vector3(0, 0, 1);
-    public float degreesForFullRange = 360f;
+    public Vector3 knobLocalAxis = new Vector3(0, 1, 0);
+    public float degreesForFullRange = 720f;
     public bool invertDirection = false;
 
     [Header("Fine Tune")]
@@ -54,13 +57,14 @@ public class VoltageKnobInput : MonoBehaviour
 
     [Header("Visual Highlight")]
     public Renderer[] targetRenderers;
-    public bool useEmissionHighlight = true;
-    public Color grabbedColor = Color.yellow;
+    public bool useEmissionHighlight = false;
+    public Color grabbedColor = Color.red;
     public float grabbedEmissionIntensity = 2.5f;
 
     [Header("Visual Rotation")]
+    public bool enableVisualRotation = true;
     public Transform visualRoot;
-    public Vector3 visualLocalAxis = new Vector3(0, 0, 1);
+    public Vector3 visualLocalAxis = new Vector3(0, 1, 0);
     public float visualMinAngle = 0f;
     public float visualMaxAngle = 180f;
 
@@ -87,12 +91,13 @@ public class VoltageKnobInput : MonoBehaviour
     private bool[] isSpriteRenderer;
 
     private Quaternion visualInitialLocalRotation;
+    private bool visualInitialRotationCaptured;
 
     private static readonly int EmissionColorID = Shader.PropertyToID("_EmissionColor");
     private static readonly int BaseColorID = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorID = Shader.PropertyToID("_Color");
 
-    private void Start()
+    private void Awake()
     {
         if (knobTransform == null)
             knobTransform = transform;
@@ -100,9 +105,14 @@ public class VoltageKnobInput : MonoBehaviour
         if (pivot == null)
             pivot = knobTransform;
 
-        if (visualRoot != null)
-            visualInitialLocalRotation = visualRoot.localRotation;
+        if (visualRoot == null)
+            visualRoot = knobTransform;
 
+        CaptureVisualInitialRotation();
+    }
+
+    private void Start()
+    {
         grabbed = false;
         activeController = null;
         hasPrevVector = false;
@@ -117,6 +127,14 @@ public class VoltageKnobInput : MonoBehaviour
 
     private void Update()
     {
+        if (!interactionEnabled)
+        {
+            if (grabbed)
+                EndGrab();
+
+            return;
+        }
+
         if (!grabbed || activeController == null)
             return;
 
@@ -169,8 +187,21 @@ public class VoltageKnobInput : MonoBehaviour
             Debug.Log("[VoltageKnobInput] V=" + CurrentVoltage.ToString("0.0"));
     }
 
+    public void SetInteractionEnabled(bool enabled)
+    {
+        interactionEnabled = enabled;
+
+        if (!interactionEnabled)
+            EndGrab();
+
+        RefreshVisualState();
+    }
+
     public void BeginGrab()
     {
+        if (!interactionEnabled)
+            return;
+
         RefreshInteractorCache();
 
         Transform chosen = FindSelectingInteractorTransformFromGrab();
@@ -235,6 +266,15 @@ public class VoltageKnobInput : MonoBehaviour
     public void SetVoltageFromExternal(float voltage)
     {
         SetVoltage(voltage, true);
+    }
+
+    private void CaptureVisualInitialRotation()
+    {
+        if (visualRoot == null)
+            return;
+
+        visualInitialLocalRotation = visualRoot.localRotation;
+        visualInitialRotationCaptured = true;
     }
 
     private Transform FindSelectingInteractorTransformFromGrab()
@@ -363,8 +403,14 @@ public class VoltageKnobInput : MonoBehaviour
 
     private void ApplyVisualRotationFromVoltage()
     {
+        if (!enableVisualRotation)
+            return;
+
         if (visualRoot == null)
             return;
+
+        if (!visualInitialRotationCaptured)
+            CaptureVisualInitialRotation();
 
         float t = Mathf.InverseLerp(minVoltage, maxVoltage, CurrentVoltage);
         float angle = Mathf.Lerp(visualMinAngle, visualMaxAngle, t);
@@ -450,7 +496,7 @@ public class VoltageKnobInput : MonoBehaviour
             if (useEmissionHighlight && hasEmissionProps[i])
             {
                 runtimeMats[i].EnableKeyword("_EMISSION");
-                runtimeMats[i].SetColor(EmissionColorID, color * grabbedEmissionIntensity);
+                runtimeMats[i].SetColor(EmissionColorID, color * emissionIntensity);
             }
         }
     }

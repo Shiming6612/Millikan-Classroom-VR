@@ -28,7 +28,7 @@ public class BottomTutorialController : MonoBehaviour
     public RadiusSliderController radiusSliderController;
     public DropSelectionManager selectionManager;
     public StoryMeasurementRecorder measurementRecorder;
-    public Behaviour voltageKnobInput;
+    public VoltageKnobInput voltageKnobInput;
     public PrePostQuizController quizController;
 
     [Header("Return Point")]
@@ -995,7 +995,7 @@ public class BottomTutorialController : MonoBehaviour
     private void SetVoltageInteraction(bool enabled)
     {
         if (voltageKnobInput != null)
-            voltageKnobInput.enabled = enabled;
+            voltageKnobInput.SetInteractionEnabled(enabled);
     }
 
     private void SetSelectionInteraction(bool enabled)
@@ -1006,10 +1006,8 @@ public class BottomTutorialController : MonoBehaviour
 
     private void ResetVoltageToZero()
     {
-        VoltageKnobInput v = voltageKnobInput as VoltageKnobInput;
-
-        if (v != null)
-            v.ResetVoltageToZero();
+        if (voltageKnobInput != null)
+            voltageKnobInput.ResetVoltageToZero();
     }
 
     private void ReturnToStoryStart()
